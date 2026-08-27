@@ -1,0 +1,68 @@
+# ---------------------------------------------------------------------------
+# Secrets - never commit these
+# ---------------------------------------------------------------------------
+config/deepseek-key.txt
+.env
+.env.*
+!.env.example
+!dashboard/.env.example
+
+# Chrome profile holds login cookies and session tokens for the YouTube
+# account. Committing it would hand over the account.
+chrome-profile/
+
+# ---------------------------------------------------------------------------
+# Media - never commit video or image output anywhere in the tree
+# ---------------------------------------------------------------------------
+*.mp4
+*.jpg
+*.jpeg
+*.mkv
+*.mov
+*.m4v
+*.webm
+*.part
+
+# The button reference images are small PNGs the uploader needs in order to
+# find YouTube Studio's controls, so they are deliberately kept.
+!assets/buttons/*.png
+
+# ---------------------------------------------------------------------------
+# Runtime output - large, machine-specific, regenerated every run
+# ---------------------------------------------------------------------------
+output/videos/
+output/logs/
+output/runs/
+output/*.txt
+output/uploaded.json
+
+# ---------------------------------------------------------------------------
+# Python
+# ---------------------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# ---------------------------------------------------------------------------
+# Node / Next.js (dashboard)
+# ---------------------------------------------------------------------------
+node_modules/
+.next/
+out/
+build/
+.vercel/
+*.tsbuildinfo
+next-env.d.ts
+npm-debug.log*
+yarn-error.log*
+
+# ---------------------------------------------------------------------------
+# OS / editor
+# ---------------------------------------------------------------------------
+Thumbs.db
+Desktop.ini
+.DS_Store
+.idea/
+.vscode/

@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>First Short Grabber</title>
+    <style>
+      :root { color-scheme: dark; }
+      body {
+        margin: 0;
+        padding: 32px 28px;
+        background: #101014;
+        color: #e8e8ea;
+        font: 14px/1.6 ui-monospace, Consolas, "Cascadia Mono", monospace;
+      }
+      h1 {
+        margin: 0 0 4px;
+        font-size: 17px;
+        font-weight: 600;
+        font-family: system-ui, "Segoe UI", sans-serif;
+      }
+      .sub { color: #8b8b93; margin-bottom: 22px; font-size: 13px; }
+      #log {
+        border-left: 2px solid #2a2a33;
+        padding-left: 16px;
+        white-space: pre-wrap;
+        word-break: break-word;
+      }
+      .line { padding: 3px 0; }
+      .t { color: #6a6a73; margin-right: 10px; }
+      .ok { color: #57d98a; }
+      .err { color: #ff6b61; }
+      .dim { color: #8b8b93; }
+      .url {
+        display: inline-block;
+        margin-top: 14px;
+        padding: 10px 14px;
+        background: #1a1a21;
+        border: 1px solid #2f2f3a;
+        border-radius: 6px;
+        color: #e8e8ea;
+        text-decoration: none;
+      }
+      .url:hover { border-color: #cc0000; }
+    </style>
+  </head>
+  <body>
+    <h1>First Short Grabber</h1>
+    <div class="sub" id="target">starting…</div>
+    <div id="log"></div>
+    <script src="trigger.js"></script>
+  </body>
+</html>

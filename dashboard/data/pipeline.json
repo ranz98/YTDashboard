@@ -1,0 +1,377 @@
+{
+  "source": "demo",
+  "generatedAt": "2026-08-27T17:13:13",
+  "root": "C:\\Users\\nilan\\OneDrive\\Documents\\CLAUDE\\YTCICDMASTER",
+  "summary": {
+    "total": 10,
+    "byStatus": {
+      "cancelled": 1,
+      "downloaded": 1,
+      "edited": 2,
+      "failed": 1,
+      "processing": 1,
+      "scheduled": 1,
+      "successful": 2,
+      "uploaded": 1
+    },
+    "downloaded": 8,
+    "edited": 5,
+    "uploaded": 3,
+    "processedToday": 7,
+    "processedThisWeek": 9,
+    "processedThisMonth": 10,
+    "avgProcessingMs": 2520000
+  },
+  "videos": [
+    {
+      "id": "YQHsXMglC9A",
+      "title": "She Found It Behind The Wall",
+      "originalTitle": "She Found It Behind The Wall",
+      "rewrittenTitle": null,
+      "caption": null,
+      "status": "scheduled",
+      "error": null,
+      "folder": "output/videos/2026-08-27/She Found It Behind The Wall [YQHsXMglC9A]",
+      "batchDate": "2026-08-27",
+      "sourceUrl": "https://www.youtube.com/shorts/YQHsXMglC9A",
+      "channel": "@Clips_Edge",
+      "scheduledAt": "2026-08-27T17:13:13",
+      "download": {
+        "done": false,
+        "at": null,
+        "sizeBytes": null,
+        "hasFrame": false
+      },
+      "edit": {
+        "done": false,
+        "at": null,
+        "sizeBytes": null,
+        "fileName": null
+      },
+      "upload": {
+        "done": false,
+        "at": null,
+        "url": null,
+        "privacy": null
+      },
+      "createdAt": "2026-08-27T17:13:13",
+      "updatedAt": "2026-08-27T17:13:13",
+      "processingMs": null
+    },
+    {
+      "id": "ZbZSe6N_BXs",
+      "title": "He Bought It For $12 And Sold It For",
+      "originalTitle": "He Bought It For $12 And Sold It For",
+      "rewrittenTitle": null,
+      "caption": null,
+      "status": "processing",
+      "error": null,
+      "folder": "output/videos/2026-08-27/He Bought It For $12 And Sold It For [ZbZSe6N_BXs]",
+      "batchDate": "2026-08-27",
+      "sourceUrl": "https://www.youtube.com/shorts/ZbZSe6N_BXs",
+      "channel": "@Clips_Edge",
+      "scheduledAt": "2026-08-27T16:13:13",
+      "download": {
+        "done": true,
+        "at": "2026-08-27T16:13:13",
+        "sizeBytes": 18400000,
+        "hasFrame": true
+      },
+      "edit": {
+        "done": false,
+        "at": null,
+        "sizeBytes": null,
+        "fileName": null
+      },
+      "upload": {
+        "done": false,
+        "at": null,
+        "url": null,
+        "privacy": null
+      },
+      "createdAt": "2026-08-27T16:13:13",
+      "updatedAt": "2026-08-27T16:55:13",
+      "processingMs": null
+    },
+    {
+      "id": "fJ9rUzIMcZQ",
+      "title": "The Island That Runs On One Generator",
+      "originalTitle": "The Island That Runs On One Generator",
+      "rewrittenTitle": null,
+      "caption": null,
+      "status": "downloaded",
+      "error": null,
+      "folder": "output/videos/2026-08-27/The Island That Runs On One Generator [fJ9rUzIMcZQ]",
+      "batchDate": "2026-08-27",
+      "sourceUrl": "https://www.youtube.com/shorts/fJ9rUzIMcZQ",
+      "channel": "@Clips_Edge",
+      "scheduledAt": "2026-08-27T15:13:13",
+      "download": {
+        "done": true,
+        "at": "2026-08-27T15:13:13",
+        "sizeBytes": 18400000,
+        "hasFrame": true
+      },
+      "edit": {
+        "done": false,
+        "at": null,
+        "sizeBytes": null,
+        "fileName": null
+      },
+      "upload": {
+        "done": false,
+        "at": null,
+        "url": null,
+        "privacy": null
+      },
+      "createdAt": "2026-08-27T15:13:13",
+      "updatedAt": "2026-08-27T15:55:13",
+      "processingMs": null
+    },
+    {
+      "id": "L_jWHffIx5E",
+      "title": "Why Every Kitchen Gets This Wrong",
+      "originalTitle": "Why Every Kitchen Gets This Wrong",
+      "rewrittenTitle": "Why Every Kitchen Gets This Wrong",
+      "caption": null,
+      "status": "edited",
+      "error": null,
+      "folder": "output/videos/2026-08-27/Why Every Kitchen Gets This Wrong [L_jWHffIx5E]",
+      "batchDate": "2026-08-27",
+      "sourceUrl": "https://www.youtube.com/shorts/L_jWHffIx5E",
+      "channel": "@Clips_Edge",
+      "scheduledAt": "2026-08-27T14:13:13",
+      "download": {
+        "done": true,
+        "at": "2026-08-27T14:13:13",
+        "sizeBytes": 18400000,
+        "hasFrame": true
+      },
+      "edit": {
+        "done": true,
+        "at": "2026-08-27T14:25:13",
+        "sizeBytes": 21900000,
+        "fileName": "Why Every Kitchen Gets This Wrong.mp4"
+      },
+      "upload": {
+        "done": false,
+        "at": null,
+        "url": null,
+        "privacy": null
+      },
+      "createdAt": "2026-08-27T14:13:13",
+      "updatedAt": "2026-08-27T14:55:13",
+      "processingMs": null
+    },
+    {
+      "id": "3JZ_D3ELwOQ",
+      "title": "This Trick Saves You 40 Minutes A Day",
+      "originalTitle": "This Trick Saves You 40 Minutes A Day",
+      "rewrittenTitle": "This Trick Saves You 40 Minutes A Day",
+      "caption": null,
+      "status": "edited",
+      "error": null,
+      "folder": "output/videos/2026-08-27/This Trick Saves You 40 Minutes A Day [3JZ_D3ELwOQ]",
+      "batchDate": "2026-08-27",
+      "sourceUrl": "https://www.youtube.com/shorts/3JZ_D3ELwOQ",
+      "channel": "@Clips_Edge",
+      "scheduledAt": "2026-08-27T13:13:13",
+      "download": {
+        "done": true,
+        "at": "2026-08-27T13:13:13",
+        "sizeBytes": 18400000,
+        "hasFrame": true
+      },
+      "edit": {
+        "done": true,
+        "at": "2026-08-27T13:25:13",
+        "sizeBytes": 21900000,
+        "fileName": "This Trick Saves You 40 Minutes A Day.mp4"
+      },
+      "upload": {
+        "done": false,
+        "at": null,
+        "url": null,
+        "privacy": null
+      },
+      "createdAt": "2026-08-27T13:13:13",
+      "updatedAt": "2026-08-27T13:55:13",
+      "processingMs": null
+    },
+    {
+      "id": "hTWKbfoikeg",
+      "title": "The Rule Nobody Reads Until Too Late",
+      "originalTitle": "The Rule Nobody Reads Until Too Late",
+      "rewrittenTitle": null,
+      "caption": null,
+      "status": "failed",
+      "error": "no frame.jpg - cover_caption cannot detect the caption",
+      "folder": "output/videos/2026-08-27/The Rule Nobody Reads Until Too Late [hTWKbfoikeg]",
+      "batchDate": "2026-08-27",
+      "sourceUrl": "https://www.youtube.com/shorts/hTWKbfoikeg",
+      "channel": "@Clips_Edge",
+      "scheduledAt": "2026-08-27T12:13:13",
+      "download": {
+        "done": true,
+        "at": "2026-08-27T12:13:13",
+        "sizeBytes": 18400000,
+        "hasFrame": false
+      },
+      "edit": {
+        "done": false,
+        "at": null,
+        "sizeBytes": null,
+        "fileName": null
+      },
+      "upload": {
+        "done": false,
+        "at": null,
+        "url": null,
+        "privacy": null
+      },
+      "createdAt": "2026-08-27T12:13:13",
+      "updatedAt": "2026-08-27T12:55:13",
+      "processingMs": null
+    },
+    {
+      "id": "9bZkp7q19f0",
+      "title": "Nobody Expected The Second Drop",
+      "originalTitle": "Nobody Expected The Second Drop",
+      "rewrittenTitle": "Nobody Expected The Second Drop",
+      "caption": null,
+      "status": "uploaded",
+      "error": null,
+      "folder": "output/videos/2026-08-27/Nobody Expected The Second Drop [9bZkp7q19f0]",
+      "batchDate": "2026-08-27",
+      "sourceUrl": "https://www.youtube.com/shorts/9bZkp7q19f0",
+      "channel": "@Clips_Edge",
+      "scheduledAt": "2026-08-27T08:13:13",
+      "download": {
+        "done": true,
+        "at": "2026-08-27T08:13:13",
+        "sizeBytes": 18400000,
+        "hasFrame": true
+      },
+      "edit": {
+        "done": true,
+        "at": "2026-08-27T08:25:13",
+        "sizeBytes": 21900000,
+        "fileName": "Nobody Expected The Second Drop.mp4"
+      },
+      "upload": {
+        "done": true,
+        "at": "2026-08-27T08:55:13",
+        "url": "https://www.youtube.com/watch?v=9bZkp7q19f0",
+        "privacy": "public"
+      },
+      "createdAt": "2026-08-27T08:13:13",
+      "updatedAt": "2026-08-27T08:55:13",
+      "processingMs": 2520000
+    },
+    {
+      "id": "kJQP7kiw5Fk",
+      "title": "The Cheapest City In Europe Right Now",
+      "originalTitle": "The Cheapest City In Europe Right Now",
+      "rewrittenTitle": "The Cheapest City In Europe Right Now",
+      "caption": null,
+      "status": "successful",
+      "error": null,
+      "folder": "output/videos/2026-08-25/The Cheapest City In Europe Right Now [kJQP7kiw5Fk]",
+      "batchDate": "2026-08-25",
+      "sourceUrl": "https://www.youtube.com/shorts/kJQP7kiw5Fk",
+      "channel": "@Clips_Edge",
+      "scheduledAt": "2026-08-25T15:13:13",
+      "download": {
+        "done": true,
+        "at": "2026-08-25T15:13:13",
+        "sizeBytes": 18400000,
+        "hasFrame": true
+      },
+      "edit": {
+        "done": true,
+        "at": "2026-08-25T15:25:13",
+        "sizeBytes": 21900000,
+        "fileName": "The Cheapest City In Europe Right Now.mp4"
+      },
+      "upload": {
+        "done": true,
+        "at": "2026-08-25T15:55:13",
+        "url": "https://www.youtube.com/watch?v=kJQP7kiw5Fk",
+        "privacy": "public"
+      },
+      "createdAt": "2026-08-25T15:13:13",
+      "updatedAt": "2026-08-25T15:55:13",
+      "processingMs": 2520000
+    },
+    {
+      "id": "dQw4w9WgXcQ",
+      "title": "He Tried To Outrun The Wave And Lost",
+      "originalTitle": "He Tried To Outrun The Wave And Lost",
+      "rewrittenTitle": "He Tried To Outrun The Wave And Lost",
+      "caption": null,
+      "status": "successful",
+      "error": null,
+      "folder": "output/videos/2026-08-24/He Tried To Outrun The Wave And Lost [dQw4w9WgXcQ]",
+      "batchDate": "2026-08-24",
+      "sourceUrl": "https://www.youtube.com/shorts/dQw4w9WgXcQ",
+      "channel": "@Clips_Edge",
+      "scheduledAt": "2026-08-24T01:13:13",
+      "download": {
+        "done": true,
+        "at": "2026-08-24T01:13:13",
+        "sizeBytes": 18400000,
+        "hasFrame": true
+      },
+      "edit": {
+        "done": true,
+        "at": "2026-08-24T01:25:13",
+        "sizeBytes": 21900000,
+        "fileName": "He Tried To Outrun The Wave And Lost.mp4"
+      },
+      "upload": {
+        "done": true,
+        "at": "2026-08-24T01:55:13",
+        "url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+        "privacy": "public"
+      },
+      "createdAt": "2026-08-24T01:13:13",
+      "updatedAt": "2026-08-24T01:55:13",
+      "processingMs": 2520000
+    },
+    {
+      "id": "CevxZvSJLk8",
+      "title": "The Recipe That Broke The Internet",
+      "originalTitle": "The Recipe That Broke The Internet",
+      "rewrittenTitle": null,
+      "caption": null,
+      "status": "cancelled",
+      "error": null,
+      "folder": "output/videos/2026-08-21/The Recipe That Broke The Internet [CevxZvSJLk8]",
+      "batchDate": "2026-08-21",
+      "sourceUrl": "https://www.youtube.com/shorts/CevxZvSJLk8",
+      "channel": "@Clips_Edge",
+      "scheduledAt": "2026-08-21T19:13:13",
+      "download": {
+        "done": false,
+        "at": null,
+        "sizeBytes": null,
+        "hasFrame": false
+      },
+      "edit": {
+        "done": false,
+        "at": null,
+        "sizeBytes": null,
+        "fileName": null
+      },
+      "upload": {
+        "done": false,
+        "at": null,
+        "url": null,
+        "privacy": null
+      },
+      "createdAt": "2026-08-21T19:13:13",
+      "updatedAt": "2026-08-21T19:55:13",
+      "processingMs": null
+    }
+  ]
+}

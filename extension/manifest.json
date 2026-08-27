@@ -1,0 +1,34 @@
+{
+  "manifest_version": 3,
+  "name": "First Short Grabber",
+  "version": "1.4.0",
+  "description": "Opens the newest Short from a YouTube channel, copies its URL, and saves it to a text file. Can be driven from a .bat file.",
+  "permissions": [
+    "tabs",
+    "scripting",
+    "downloads",
+    "storage",
+    "clipboardWrite",
+    "offscreen"
+  ],
+  "host_permissions": [
+    "https://www.youtube.com/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_title": "Grab the first Short",
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}
