@@ -2,3 +2,4 @@ config.json
 data/
 STOP
 __pycache__/
+.venv/

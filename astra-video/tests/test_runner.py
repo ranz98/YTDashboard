@@ -14,6 +14,7 @@ spec.loader.exec_module(runner)
 class RunnerTests(unittest.TestCase):
     def config(self):
         return {"url": "https://example.com/astra/", "token": "a" * 64,
+                "bridge_token": "b" * 64,
                 "commands": {"editor": ["python", "adapter.py"]}}
 
     def test_empty_capabilities_rejected(self):

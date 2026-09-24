@@ -55,6 +55,9 @@ def validate(config):
     token = config.get("token", "")
     if len(token) != 64 or any(c not in "0123456789abcdef" for c in token):
         raise ValueError("Set the worker token in config.json.")
+    bridge_token = config.get('bridge_token', '')
+    if len(bridge_token) != 64 or any(c not in '0123456789abcdef' for c in bridge_token):
+        raise ValueError('Run setup.py to create the local Chrome pairing key.')
     commands = config.get("commands", {})
     if not commands:
         raise ValueError("No stage adapters configured. See README.md before enabling stages.")
@@ -82,6 +85,7 @@ class Runner:
         self.data = directory / "data"
         self.journal = self.data / "active.json"
         self.stop_file = directory / "STOP"
+        self.bridge = None
 
     def deliver(self, record):
         task = record["task"]
@@ -113,12 +117,17 @@ class Runner:
                 last_beat = 0
                 while process.poll() is None:
                     if time.monotonic() - last_beat >= 15:
-                        reply = self.client.call("heartbeat", id=task["id"], lease=task["lease"], progress=0)
+                        status_path = work / 'progress.json'
+                        status = read(status_path) if status_path.exists() else {}
+                        reply = self.client.call("heartbeat", id=task["id"], lease=task["lease"],
+                                                 progress=status.get('progress', 0), message=status.get('message', ''))
                         last_beat = time.monotonic()
                         cancelled = bool(reply.get("stop_requested"))
                     if cancelled or self.stop_file.exists():
                         cancelled = True
                         stop_process(process)
+                        if self.bridge:
+                            self.bridge.cancel()
                         break
                     if time.monotonic() - started > self.config.get("stage_timeout_seconds", 7200):
                         raise TimeoutError("Stage time limit reached")
@@ -136,12 +145,16 @@ class Runner:
         except BaseException:
             if process is not None:
                 stop_process(process)
+            if self.bridge:
+                self.bridge.cancel()
             # Upload side effects may have happened before a crash or timeout.
             result = {"state": "needs_attention" if task["agent"] == "uploader" else "failed",
                       "reason": "Stage interrupted or returned invalid output; inspect the VPS log."}
             LOG.error("Task %s interrupted; its result is saved for acknowledgement", task["id"])
         if task["agent"] == "uploader" and result["state"] != "completed":
             result["state"] = "needs_attention"
+        if self.bridge:
+            self.bridge.cancel()
         record.update(phase="complete", result=result)
         save(self.journal, record)
         self.deliver(record)
@@ -154,6 +167,9 @@ class Runner:
             self.deliver(record)
         LOG.info("Runner ready: %s", ", ".join(self.config["commands"]))
         while not self.stop_file.exists():
+            if self.bridge and not self.bridge.ready():
+                time.sleep(2)
+                continue
             # A lost claim response must never lead to a second claim.
             save(self.journal, {"phase": "claiming"})
             response = self.client.call("claim")
@@ -191,7 +207,16 @@ def main():
         lock.flush()
         lock.seek(0)
         msvcrt.locking(lock.fileno(), msvcrt.LK_NBLCK, 1)
-        Runner(config).run()
+        from bridge import Bridge
+        bridge = Bridge(BASE, config['bridge_token'])
+        bridge.start()
+        try:
+            worker = Runner(config)
+            worker.bridge = bridge
+            LOG.info('Waiting for the paired Chrome extension on this computer')
+            worker.run()
+        finally:
+            bridge.close()
 
 
 if __name__ == "__main__":

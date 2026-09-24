@@ -32,6 +32,10 @@ try {
     }
     if ($action==='heartbeat') {
         $task=owned_task($pdo,$worker,(int)($body['id']??0),(string)($body['lease']??''));
+        $progress=max(0,min(99,(int)($body['progress']??0)));
+        if ($progress!==(int)$task['progress'] && !empty($body['message'])) {
+            event($pdo,$task['job_id']?(int)$task['job_id']:null,$task['agent'],'info',mb_substr((string)$body['message'],0,200));
+        }
         $q=$pdo->prepare('UPDATE pipeline_tasks SET heartbeat_at=UTC_TIMESTAMP(),progress=? WHERE id=?');$q->execute([max(0,min(99,(int)($body['progress']??0))),$task['id']]);
         $pdo->commit();json_response(['stop_requested'=>(bool)$task['stop_requested']]);
     }

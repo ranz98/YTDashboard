@@ -1,0 +1,8 @@
+yt-dlp[default]
+opencv-python
+numpy
+Pillow
+openai
+httpx
+winsdk; sys_platform == 'win32'
+pytesseract
