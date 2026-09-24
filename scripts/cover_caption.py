@@ -21,7 +21,6 @@ If detection picks the wrong thing, pass the rectangle yourself:
 
 import argparse
 import json
-import os
 import subprocess
 import shutil
 import sys
@@ -302,15 +301,9 @@ def ocr_windows(image_path):
     """
     try:
         import asyncio
-        try:
-            from winrt.windows.graphics.imaging import BitmapDecoder
-            from winrt.windows.media.ocr import OcrEngine
-            from winrt.windows.storage import FileAccessMode, StorageFile
-        except ImportError:
-            # Keep older installations working with their existing SDK.
-            from winsdk.windows.graphics.imaging import BitmapDecoder
-            from winsdk.windows.media.ocr import OcrEngine
-            from winsdk.windows.storage import FileAccessMode, StorageFile
+        from winsdk.windows.graphics.imaging import BitmapDecoder
+        from winsdk.windows.media.ocr import OcrEngine
+        from winsdk.windows.storage import FileAccessMode, StorageFile
     except ImportError:
         return None
 
@@ -409,10 +402,6 @@ def build_filter(box, mode, color, grade=""):
 def cover_video(video, box, out_path, mode, color, crf, preset, ffmpeg,
                 overlay=None, grade="", preview=0):
     cmd = [ffmpeg, "-y", "-loglevel", "error", "-stats"]
-    threads = os.environ.get('ASTRA_FFMPEG_THREADS')
-    if threads:
-        threads = str(max(1, min(2, int(threads))))
-        cmd += ['-threads', threads, '-filter_complex_threads', threads, '-filter_threads', threads]
     if preview:
         cmd += ["-t", str(preview)]
     cmd += ["-i", str(video)]
@@ -429,8 +418,6 @@ def cover_video(video, box, out_path, mode, color, crf, preset, ffmpeg,
     else:
         cmd += ["-filter_complex", build_filter(box, mode, color, grade)]
 
-    if threads:
-        cmd += ['-threads', threads]
     cmd += [
         "-c:v", "libx264", "-crf", str(crf), "-preset", preset,
         "-pix_fmt", "yuv420p", "-c:a", "copy",

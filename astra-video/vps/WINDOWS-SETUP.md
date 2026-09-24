@@ -43,10 +43,14 @@ existing dashboard configuration and pairing are preserved. In `chrome://extensi
 reload Astra VPS Agents and accept the new request-blocking permission if Chrome
 asks. Then run `start.cmd`. Do not delete the media folder or task journal.
 
-The editor runs at below-normal priority with one thread on a 1–2 CPU system,
-or at most two threads on larger systems. Filtering and render verification
-are limited too. This leaves more room for Windows, at the cost of longer edits;
-it does not change render resolution or encoding quality settings.
+The original editor files are unchanged. The runner lowers the editor process
+priority; the original editor chooses its own FFmpeg settings. The adapter limits
+its separate verification pass. No caption, OCR or render logic is rewritten.
+
+To use the exact working copy on your VPS, configure `editor_script` with its
+absolute `cover_caption.py` path and `editor_python` with the Python executable
+used by that installation in `config.json`. Keep its companion files and original
+DeepSeek key in place. The runner invokes this editor without modifying its files.
 
 The extension blocks image/media requests only in its channel-scan tab, pauses
 previews, and removes the rules after the scan. Studio upload traffic is untouched.

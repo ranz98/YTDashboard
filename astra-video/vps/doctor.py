@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 import shutil
 import subprocess
+import sys
 
 from runner import BASE, read, validate
 
@@ -39,6 +40,15 @@ def main():
         pass
     if not ocr and not (shutil.which('tesseract') and importlib.util.find_spec('pytesseract')):
         failures.append('No working OCR found in this Python. Select the Python used by your existing editor, or configure Windows OCR / Tesseract.')
+    elif not failures:
+        config_path = BASE / 'config.json'
+        config = read(config_path) if config_path.exists() else {}
+        command = [config.get('editor_python') or sys.executable, str(BASE / 'check-ocr.py')]
+        if config.get('editor_script'):
+            command += ['--editor', config['editor_script']]
+        result = subprocess.run(command)
+        if result.returncode:
+            failures.append('The real OCR reading test failed. See its diagnostic above.')
     for failure in failures:
         print('FIX:', failure)
     if failures:

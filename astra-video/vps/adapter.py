@@ -100,6 +100,11 @@ def fetch(task, request):
 
 
 def edit(task, request):
+    config = read(BASE / 'config.json')
+    editor = Path(config.get('editor_script') or ROOT / 'scripts/cover_caption.py').resolve()
+    editor_python = config.get('editor_python') or sys.executable
+    if not editor.is_file():
+        raise RuntimeError('The configured original editor script was not found.')
     folder = folder_for(task, task['video']['source_video_id'])
     source = folder / 'video.mp4'
     duration = verify(source)
@@ -108,7 +113,7 @@ def edit(task, request):
     # Keep source selection deterministic when an edit is retried.
     progress(request, 15, 'Rewriting the caption and rendering the video.')
     (folder / 'title-new.txt').unlink(missing_ok=True)
-    run(sys.executable, ROOT / 'scripts/cover_caption.py', source, '--rewrite', '--no-stage',
+    run(editor_python, editor, source, '--rewrite', '--no-stage',
         '--filter', task['channel'].get('preset') or 'vivid', '-o', temporary)
     rendered = verify(temporary)
     run('ffmpeg', '-v', 'error', '-xerror', '-threads', os.environ.get('ASTRA_FFMPEG_THREADS', '1'), '-i', temporary, '-threads', '1', '-f', 'null', '-')
