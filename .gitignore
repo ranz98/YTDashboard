@@ -68,6 +68,7 @@ Desktop.ini
 .vscode/
 
 # Local credentials and generated files.
+/REFERENCE/
 **/deepseek-key.txt
 **/data/
 **/logs/

@@ -101,7 +101,7 @@ def fetch(task, request):
 
 def edit(task, request):
     config = read(BASE / 'config.json')
-    editor = Path(config.get('editor_script') or ROOT / 'scripts/cover_caption.py').resolve()
+    editor = Path(config.get('editor_script') or BASE / 'original-editor/cover_caption.py').resolve()
     editor_python = config.get('editor_python') or sys.executable
     if not editor.is_file():
         raise RuntimeError('The configured original editor script was not found.')
@@ -113,8 +113,13 @@ def edit(task, request):
     # Keep source selection deterministic when an edit is retried.
     progress(request, 15, 'Rewriting the caption and rendering the video.')
     (folder / 'title-new.txt').unlink(missing_ok=True)
-    run(editor_python, editor, source, '--rewrite', '--no-stage',
-        '--filter', task['channel'].get('preset') or 'vivid', '-o', temporary)
+    environment = os.environ.copy()
+    key_path = ROOT / 'config/deepseek-key.txt'
+    if not environment.get('DEEPSEEK_API_KEY') and key_path.exists():
+        environment['DEEPSEEK_API_KEY'] = key_path.read_text(encoding='utf-8').strip()
+    subprocess.run([str(value) for value in [editor_python, editor, source, '--rewrite', '--no-stage',
+        '--filter', task['channel'].get('preset') or 'vivid', '-o', temporary]],
+        check=True, cwd=editor.parent, env=environment)
     rendered = verify(temporary)
     run('ffmpeg', '-v', 'error', '-xerror', '-threads', os.environ.get('ASTRA_FFMPEG_THREADS', '1'), '-i', temporary, '-threads', '1', '-f', 'null', '-')
     if abs(duration - rendered) > max(1.0, duration * .02):

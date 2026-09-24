@@ -29,18 +29,7 @@ def main():
     key_path = BASE.parents[1] / 'config/deepseek-key.txt'
     if not args.dependencies_only and not os.environ.get('DEEPSEEK_API_KEY') and not (key_path.exists() and key_path.read_text().strip()):
         failures.append('Put your DeepSeek key in config/deepseek-key.txt under the main Astra folder.')
-    ocr = False
-    try:
-        try:
-            from winrt.windows.media.ocr import OcrEngine
-        except ImportError:
-            from winsdk.windows.media.ocr import OcrEngine
-        ocr = OcrEngine.try_create_from_user_profile_languages() is not None
-    except Exception:
-        pass
-    if not ocr and not (shutil.which('tesseract') and importlib.util.find_spec('pytesseract')):
-        failures.append('No working OCR found in this Python. Select the Python used by your existing editor, or configure Windows OCR / Tesseract.')
-    elif not failures:
+    if not failures:
         config_path = BASE / 'config.json'
         config = read(config_path) if config_path.exists() else {}
         command = [config.get('editor_python') or sys.executable, str(BASE / 'check-ocr.py')]

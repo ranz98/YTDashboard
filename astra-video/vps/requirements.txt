@@ -4,10 +4,5 @@ numpy
 Pillow
 openai>=1,<3
 httpx
-winrt-Windows.Media.Ocr>=3.2.1; sys_platform == 'win32'
-winrt-Windows.Graphics.Imaging>=3.2.1; sys_platform == 'win32'
-winrt-Windows.Storage>=3.2.1; sys_platform == 'win32'
-winrt-Windows.Storage.Streams>=3.2.1; sys_platform == 'win32'
-winrt-Windows.Foundation>=3.2.1; sys_platform == 'win32'
-winrt-Windows.Globalization>=3.2.1; sys_platform == 'win32'
 pytesseract
+# Original OCR uses the existing winsdk environment or Tesseract. No automatic installation.

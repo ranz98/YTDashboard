@@ -7,3 +7,4 @@
 - Public dashboard access is read-only. Keep all write operations authenticated.
 - Do not change the running Task Scheduler setup without an explicit request.
 - The external `deepseekog` folder is a read-only reference.
+- `REFERENCE/YT` is read-only. Do not modify its files or the original editor copies in `astra-video/vps/original-editor`. Change only adapters around the original editor.

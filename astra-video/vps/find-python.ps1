@@ -30,6 +30,7 @@ if ($launcher) {
 if (Test-Path -LiteralPath $existing) { $candidates.Add(@($existing)) }
 $bestPython = $null
 $bestScore = -1
+$tested = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
 foreach ($candidate in $candidates) {
     $executable = $candidate[0]
     $arguments = @($candidate | Select-Object -Skip 1)
@@ -37,8 +38,14 @@ foreach ($candidate in $candidates) {
         $output = @(& $executable @arguments -c $probe 2>$null)
         if ($LASTEXITCODE -ne 0 -or -not $output) { continue }
         $resolvedPython = "$($output[-1])".Trim()
+        if (-not $tested.Add($resolvedPython)) { continue }
         $scoreText = & $resolvedPython -c "import importlib.util; print(sum(importlib.util.find_spec(n) is not None for n in ['yt_dlp','cv2','numpy','PIL','openai']))" 2>$null
         $score = [int]$scoreText
+        try {
+            & $resolvedPython (Join-Path $PSScriptRoot 'check-ocr.py') *> $null
+            if ($LASTEXITCODE -eq 0) { $score += 10 }
+        } catch { }
+
         if ($score -gt $bestScore) { $bestPython = $resolvedPython; $bestScore = $score }
         if ($env:ASTRA_PYTHON -and $resolvedPython -ieq $env:ASTRA_PYTHON) { break }
     } catch {
@@ -46,7 +53,7 @@ foreach ($candidate in $candidates) {
     }
 }
 if ($bestPython) {
-    Write-Host "Using Python: $bestPython ($bestScore of 5 existing packages found)"
+    Write-Host "Using Python: $bestPython (existing packages and original OCR checked)"
     & $bestPython --version
     if (-not $CheckOnly) {
         New-Item -ItemType Directory -Force -Path (Join-Path $PSScriptRoot 'data') | Out-Null

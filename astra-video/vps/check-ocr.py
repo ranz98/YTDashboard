@@ -10,7 +10,7 @@ ROOT = Path(__file__).resolve().parents[2]
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--image', type=Path)
-    parser.add_argument('--editor', type=Path, default=ROOT / 'scripts/cover_caption.py')
+    parser.add_argument('--editor', type=Path, default=Path(__file__).resolve().parent / 'original-editor/cover_caption.py')
     args = parser.parse_args()
     import importlib.util
     sys.path.insert(0, str(args.editor.resolve().parent))

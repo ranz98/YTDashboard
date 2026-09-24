@@ -6,7 +6,7 @@
    Both `ffmpeg` and `ffprobe` must work in a new Command Prompt. Windows OCR
    needs an English language pack. If unavailable on Windows Server, install
    Tesseract with English data and add it to PATH. The installer checks this.
-   Setup selects the installed Python with the most required packages. It does
+   Setup prefers installed Python environments that pass the original editor OCR test. It does
    not create an environment, install packages, or upgrade anything. Python 3.11
    specifically and the Python launcher are not required. If your working scripts
    use a custom Python path, set `ASTRA_PYTHON` to that executable before setup.
@@ -100,3 +100,14 @@ on that machine still requires the steps above.
 YouTube extraction uses the runtime and EJS package described in the
 [official yt-dlp setup guide](https://github.com/yt-dlp/yt-dlp/wiki/EJS).
 File selection uses Chrome's [debugger API](https://developer.chrome.com/docs/extensions/reference/api/debugger).
+
+## Original editor reference
+
+The files in `original-editor` are exact copies of `REFERENCE/YT`, including
+its font files. No editor source changes were made. The default adapter invokes
+that copy and passes the existing configured DeepSeek key through the environment.
+The original `winsdk` or Tesseract OCR must actually read text in the selected
+Python environment. Installing modern `winrt` alone does not satisfy this editor.
+
+After updating, run `install.cmd`, then `start.cmd`. Retry one failed editor task
+from the dashboard after the OCR test passes. Existing downloads stay in place.
