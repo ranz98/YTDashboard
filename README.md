@@ -1,4 +1,17 @@
-# First Short Grabber
+# YouTube Dashboard
+
+The deployed Hostinger dashboard is in [`astra-video/`](astra-video/README.md).
+It uses PHP, MySQL and plain JavaScript, with public read-only access and protected
+admin controls. [Open dashboard](https://lightblue-mantis-659122.hostingersite.com/astra/).
+
+The root `dashboard/` contains the earlier Next.js dashboard. Its files and Git
+history are preserved. `YT/` and `uploader/` preserve the local source used before
+this deployment. The organized pipeline below remains unchanged.
+
+The hosted dashboard is working; connecting the VPS runner and Chrome upload
+automation is still pending. No existing scheduled tasks were changed.
+
+## First Short Grabber
 
 Opens the newest Short from a YouTube channel, copies its URL to the clipboard,
 and saves it to a text file. Driven by a `.bat` file — double-click and done.

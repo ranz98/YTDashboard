@@ -1,0 +1,6 @@
+data/
+__pycache__/
+*.pyc
+dashboard/public/private/config.php
+dashboard/public/private/bootstrap.php
+deploy/.local-*
