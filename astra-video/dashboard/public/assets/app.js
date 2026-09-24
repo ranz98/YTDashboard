@@ -7,11 +7,12 @@ document.body.classList.toggle('public-view', !isAdmin);
 const content = $('#page-content');
 let page = '', channels = [], logRows = [], logCursor = 0, logJob = '', logPaused = false, logBusy = false, pageGeneration = 0;
 const pages = {
-  overview:['Overview','Everything happening across your video pipeline.','＋ New job'],
-  jobs:['Jobs','Track every run, from discovery to publication.','＋ New job'],
+  overview:['Control room','Your fetch, edit and publishing agents in one place.',null],
+  jobs:['Queue','Every agent shares one execution slot. No overlapping work.',null],
   library:['Video library','Your source videos, finished edits and published Shorts.',null],
   channels:['Channels','Choose what to follow and where your videos go.','＋ Add channel'],
-  schedules:['Schedules','Set a rhythm for your content. All times are shown in UTC.','＋ Add schedule'],
+  schedules:['Scheduler','Three daily fetches and posts, displayed in Sri Lanka time.',null],
+  errors:['Errors','Blocked tasks, skipped videos and worker failures.',null],
   console:['Live console','A single view of events across your workspace.',null],
   analytics:['Analytics','Real numbers from your video operations.',null],
   settings:['Settings','Your workspace connection, account and deployment status.',null]
@@ -29,7 +30,7 @@ async function api(action, body, query = '') {
   return data;
 }
 function toast(message){ const node=$('#toast');node.textContent=message;node.hidden=false;clearTimeout(toast.timer);toast.timer=setTimeout(()=>node.hidden=true,4500); }
-function date(value){ if(!value)return '—';const d=new Date(value.includes('T')?value:value.replace(' ','T')+'Z');return Number.isNaN(d.valueOf())?'—':d.toLocaleString(undefined,{timeZone:'UTC',month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}); }
+function date(value){ if(!value)return '—';const d=new Date(value.includes('T')?value:value.replace(' ','T')+'Z');return Number.isNaN(d.valueOf())?'—':d.toLocaleString(undefined,{timeZone:'Asia/Colombo',month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}); }
 function badge(status){const color=['published','connected','success','enabled'].includes(status)?'green':['queued','ready','needs_attention'].includes(status)?'amber':['failed','error'].includes(status)?'red':'';return `<span class="badge ${color}">${esc(status.replaceAll('_',' '))}</span>`;}
 function empty(title, text, action='', symbol='▤'){return `<div class="empty"><span class="empty-symbol">${symbol}</span><h3>${esc(title)}</h3><p>${esc(text)}</p>${action}</div>`;}
 function stat(label,value,foot,icon='◫'){return `<article class="stat"><div class="stat-top"><span>${esc(label)}</span><span class="stat-icon">${icon}</span></div><div class="stat-value">${esc(value)}</div><div class="stat-bottom">${foot}</div></article>`;}
@@ -38,9 +39,9 @@ function jobsTable(rows, compact=false){
   if(!rows.length)return empty('Your first run starts here','Add a source channel, then queue a job. Its progress will appear here.','<button class="button small" data-command="new-job">＋ Queue a job</button>','▷');
   return `<div class="table-wrap"><table><thead><tr><th>Job / Channel</th><th>Status</th>${compact?'':'<th>Stage</th>'}<th>Created</th><th></th></tr></thead><tbody>${rows.map(j=>`<tr><td><strong>#${j.id} · ${esc(j.channel_name)}</strong><small>${esc(j.title||j.handle)}</small></td><td>${badge(j.status)}</td>${compact?'':`<td>${esc(j.stage)}</td>`}<td>${date(j.created_at)}</td><td><div class="table-actions"><button class="button small" data-command="job-log" data-id="${j.id}">Logs</button>${j.status==='queued'?`<button class="button small danger" data-command="cancel-job" data-id="${j.id}">Cancel</button>`:''}</div></td></tr>`).join('')}</tbody></table></div>`;
 }
-function synced(){ $('#connection-pill').innerHTML='<span class="status-dot"></span> Connected';$('#last-sync').textContent='Last synced '+new Date().toLocaleTimeString(undefined,{timeZone:'UTC'})+' UTC'; }
+function synced(){ $('#connection-pill').innerHTML='<span class="status-dot"></span> Connected';$('#last-sync').textContent='Last synced '+new Date().toLocaleTimeString(undefined,{timeZone:'Asia/Colombo'})+' SL time'; }
 
-async function render(){
+async function render(background=false){
   const generation=++pageGeneration;
   const requested=(location.hash.slice(1)||'overview').split('?')[0];
   page=Object.hasOwn(pages,requested)?requested:'overview';
@@ -49,29 +50,17 @@ async function render(){
   document.title=`${title} · Astra Video`;
   $('#primary-action').hidden=!action||!isAdmin;$('#primary-action').textContent=action||'';
   document.querySelectorAll('[data-page]').forEach(a=>a.classList.toggle('active',a.dataset.page===page));
-  $('.sidebar').classList.remove('open');
-  $('#sidebar-scrim').hidden=true;$('#menu-toggle').setAttribute('aria-expanded','false');
-  content.innerHTML='<div class="loading">Loading your workspace…</div>';
+  if(!background){
+    $('.sidebar').classList.remove('open');$('#sidebar-scrim').hidden=true;$('#menu-toggle').setAttribute('aria-expanded','false');
+    content.innerHTML='<div class="loading">Loading your workspace…</div>';
+  }
   try {
     let html='';
-    if(page==='overview'){
-      const d=await api('overview');const s=d.stats;
-      $('#nav-queue').textContent=s.queued;
-      html=`<div class="stats-grid">${stat('Published today',s.published_today,'Completed publications · UTC','↗')}${stat('In the queue',s.queued,'Waiting for a worker','≡')}${stat('Active channels',s.channels,'Sources you are following','◎')}${stat('Needs attention',s.failed,'Failed or unresolved jobs','!')}</div>`;
-      const steps='<div class="pipeline">'+[['◎','Discover','Find new Shorts'],['↓','Download','Save source video'],['✧','Edit','Rewrite & render'],['↗','Publish','Upload to YouTube']].map(([icon,t,sub])=>`<div class="pipeline-step"><div class="step-icon">${icon}</div><strong>${t}</strong><small>${sub}</small></div>`).join('')+'</div><div class="pipeline-note"><span class="status-dot amber"></span> Pipeline is waiting for the VPS runner and extension.</div>';
-      const health='<div class="health-body">'+[['◫','Dashboard','connected'],['▥','MySQL database','connected'],['⌘','VPS runner','not connected'],['◎','Chrome extension','not connected']].map(([i,t,s])=>`<div class="health-row"><span><span class="health-icon">${i}</span>${t}</span>${badge(s)}</div>`).join('')+'</div>';
-      const events=d.events.length?'<div class="activity-list">'+d.events.slice(0,5).map(e=>`<div class="activity"><span class="activity-dot"></span><div><p>${esc(e.message)}</p><small>${date(e.created_at)} · ${esc(e.source)}</small></div></div>`).join('')+'</div>':empty('Nothing to report yet','Workspace activity will appear as you add channels and jobs.');
-      html+=`<div class="dashboard-grid"><div>${panel('Your pipeline','One connected workflow, four stages',steps,'<span class="badge">Not connected</span>')}${panel('Recent jobs','The latest runs in your workspace',jobsTable(d.jobs,true),'<a class="text-link" href="#jobs">View all jobs →</a>')}</div><div class="right-column">${panel('System health','Connections that power your pipeline',health)}${panel('Activity','Latest workspace events',events,'<a class="text-link" href="#console">Open console ↗</a>')}</div></div>`;
-    } else if(page==='jobs'){
-      const d=await api('jobs');html=panel('All jobs',`${d.items.length} recent jobs`,jobsTable(d.items));
+    if(operationPages.includes(page)){
+      html=await renderOperations(page);
     } else if(page==='channels'){
       const d=await api('channels');channels=d.items;
-      html=channels.length?'<div class="cards-grid">'+channels.map(c=>`<article class="panel channel-card"><div class="channel-head"><span class="channel-avatar">◎</span>${badge(Number(c.enabled)?'enabled':'paused')}</div><h3>${esc(c.name)}</h3><p class="muted">${esc(c.handle)}</p><div class="channel-details"><span>Destination <b>${esc(c.destination||'Not configured')}</b></span><span>Editing preset <b>${esc(c.preset)}</b></span><span>Jobs <b>${c.jobs_count}</b></span><span>Publishing <b>Manual approval</b></span></div><div class="channel-actions"><button class="button small" data-command="queue-channel" data-id="${c.id}" ${Number(c.enabled)?'':'disabled'}>Queue job</button><button class="button small" data-command="toggle-channel" data-id="${c.id}">${Number(c.enabled)?'Pause':'Enable'}</button></div></article>`).join('')+'</div>':panel('Source channels','Build your content sources',empty('Follow your first channel','Add a YouTube @handle and select an editing preset.','<button class="button small" data-command="new-channel">＋ Add channel</button>','◎'));
-    } else if(page==='schedules'){
-      const d=await api('schedules');html=panel('Recurring runs','Schedules are stored. The VPS runner is required to execute them.',d.items.length?`<div class="table-wrap"><table><thead><tr><th>Channel</th><th>Frequency</th><th>Status</th><th>Next due · UTC</th><th></th></tr></thead><tbody>${d.items.map(s=>`<tr><td><strong>${esc(s.channel_name)}</strong><small>${esc(s.handle)}</small></td><td>Every ${s.interval_minutes} min</td><td>${badge(Number(s.enabled)?'enabled':'paused')}</td><td>${date(s.next_run)}</td><td><button class="button small" data-command="toggle-schedule" data-id="${s.id}">${Number(s.enabled)?'Pause':'Enable'}</button></td></tr>`).join('')}</tbody></table></div>`:empty('A consistent rhythm starts here','Choose a channel and how often it should be checked.','<button class="button small" data-command="new-schedule">＋ Add schedule</button>','◷'));
-    } else if(page==='library'){
-      const d=await api('jobs');const videos=d.items.filter(j=>j.source_video_id);
-      html=panel('Processed videos','Video metadata appears when the runner reports a discovered source.',videos.length?`<div class="table-wrap"><table><thead><tr><th>Video</th><th>Channel</th><th>Status</th><th>Published</th></tr></thead><tbody>${videos.map(v=>`<tr><td><strong>${esc(v.title||v.original_title||v.source_video_id)}</strong><small>${esc(v.source_video_id)}</small></td><td>${esc(v.channel_name)}</td><td>${badge(v.status)}</td><td>${v.published_url && /^https:\/\/(www\.)?youtube\.com\//.test(v.published_url)?`<a class="text-link" href="${esc(v.published_url)}" target="_blank" rel="noopener">Open video ↗</a>`:'—'}</td></tr>`).join('')}</tbody></table></div>`:empty('Your video library is clear','Discovered and processed videos will appear here once automation is connected.','','▤'));
+      html=channels.length?'<div class="cards-grid">'+channels.map(c=>`<article class="panel channel-card"><div class="channel-head"><span class="channel-avatar">◎</span>${badge(Number(c.enabled)?'enabled':'paused')}</div><h3>${esc(c.name)}</h3><p class="muted">${esc(c.handle)}</p><div class="channel-details"><span>Destination <b>${esc(c.destination||'Not configured')}</b></span><span>Editing preset <b>${esc(c.preset)}</b></span><span>Jobs <b>${c.jobs_count}</b></span><span>Publishing <b>3 daily slots · eligible edits</b></span></div><div class="channel-actions"><button class="button small" data-command="queue-channel" data-id="${c.id}" ${Number(c.enabled)?'':'disabled'}>Queue job</button><button class="button small" data-command="toggle-channel" data-id="${c.id}">${Number(c.enabled)?'Pause':'Enable'}</button></div></article>`).join('')+'</div>':panel('Source channels','Build your content sources',empty('Follow your first channel','Add a YouTube @handle and select an editing preset.','<button class="button small" data-command="new-channel">＋ Add channel</button>','◎'));
     } else if(page==='console'){
       logRows=[];logCursor=0;logPaused=false;
       html=`<section class="panel"><div class="toolbar"><div class="toolbar-group"><input id="log-search" aria-label="Search logs" placeholder="Search console…"><select id="log-level" aria-label="Filter level"><option value="">All levels</option><option>info</option><option>success</option><option>warning</option><option>error</option></select><input id="log-job" type="number" min="1" aria-label="Job ID filter" placeholder="Job ID" value="${esc(logJob)}"></div><div class="toolbar-group"><button class="button small" id="pause-log">Pause</button><button class="button small" id="download-log">↓ Export</button></div></div><div id="console-output" class="console" role="log" aria-live="off"><span class="console-empty">Connecting to workspace events…</span></div><div class="console-footer"><span id="console-status">● Connecting</span><label class="checkbox-label"><input type="checkbox" id="autoscroll" checked>Auto-scroll</label></div></section>`;
@@ -79,15 +68,15 @@ async function render(){
       const d=await api('analytics');const s=d.totals;const completed=Number(s.published)+Number(s.failed);
       html=`<div class="stats-grid">${stat('Total jobs',s.jobs,'All recorded jobs','≡')}${stat('Published',s.published,'Confirmed publications','↗')}${stat('Success rate',completed?Math.round(Number(s.published)/completed*100)+'%':'—','Published / completed attempts','◫')}${stat('Average duration',s.average_seconds?Math.round(s.average_seconds/60)+' min':'—','From queued to published','◷')}</div>`;
       const map=new Map(d.days.map(day=>[day.day,day]));let bars='';const max=Math.max(1,...d.days.map(x=>Number(x.jobs)));
-      for(let i=29;i>=0;i--){const day=new Date();day.setUTCDate(day.getUTCDate()-i);const key=day.toISOString().slice(0,10);const count=Number(map.get(key)?.jobs||0);bars+=`<div class="chart-bar-wrap"><progress class="chart-bar" value="${count}" max="${max}" title="${key}: ${count} jobs" aria-label="${key}: ${count} jobs"></progress>${i%5===0?`<span class="chart-day">${key.slice(5)}</span>`:''}</div>`;}
-      html+=panel('Job volume','Last 30 days · UTC',`<div class="analytics-chart">${bars}${Number(s.jobs)?'':'<div class="chart-empty">Your first job will start this chart.</div>'}</div>`);
+      for(let i=29;i>=0;i--){const day=new Date();day.setTime(day.getTime()+19800000-i*86400000);const key=day.toISOString().slice(0,10);const count=Number(map.get(key)?.jobs||0);bars+=`<div class="chart-bar-wrap"><progress class="chart-bar" value="${count}" max="${max}" title="${key}: ${count} jobs" aria-label="${key}: ${count} jobs"></progress>${i%5===0?`<span class="chart-day">${key.slice(5)}</span>`:''}</div>`;}
+      html+=panel('Job volume','Last 30 days · Sri Lanka time',`<div class="analytics-chart">${bars}${Number(s.jobs)?'':'<div class="chart-empty">Your first job will start this chart.</div>'}</div>`);
       html+='<div class="notice analytics-notice"><span class="notice-icon">i</span><div><strong>Operational analytics</strong><p>YouTube views, watch time and subscriber metrics need a separate authorized YouTube Analytics integration.</p></div></div>';
     } else if(page==='settings'){
       const d=await api('settings');
-      html=`<div class="settings-grid">${panel('Workspace','Deployment and connection information','<div class="settings-section"><div class="health-row"><span>Version</span>'+badge(d.version)+'</div><div class="health-row"><span>Database</span>'+badge('connected')+'</div><div class="health-row"><span>Time storage & display</span><span>UTC</span></div><div class="health-row"><span>Dashboard</span>'+badge('connected')+'</div><p>Your channels, schedules, jobs and console events are stored in MySQL. Media files will remain on the VPS.</p></div>')}${panel('Automation setup','Pending implementation and VPS connection','<div class="settings-section"><p>This release provides the hosted dashboard and database. It does not execute scheduled jobs or operate Chrome yet.</p><ol class="setup-list"><li>Build and install the persistent VPS runner.</li><li>Load and pair the Chrome extension.</li><li>Validate download, editing and upload.</li><li>Enable scheduling after an end-to-end test.</li></ol><p>The existing Task Scheduler tasks have not been changed.</p></div>')}${panel('Account security','Update your administrator password','<form id="password-form" class="settings-section"><label>Current password<input name="current" type="password" autocomplete="current-password" required></label><label>New password<input name="password" type="password" minlength="14" autocomplete="new-password" required></label><button type="submit" class="button primary">Update password</button></form>')}</div>`;
+      html=`<div class="settings-grid">${panel('Workspace','Deployment and connection information','<div class="settings-section"><div class="health-row"><span>Version</span>'+badge(d.version)+'</div><div class="health-row"><span>Database</span>'+badge('connected')+'</div><div class="health-row"><span>Display timezone</span><span>Sri Lanka · UTC+05:30</span></div><div class="health-row"><span>Dashboard</span>'+badge('connected')+'</div><p>Your channels, schedules, jobs and console events are stored in MySQL. Media files will remain on the VPS.</p></div>')}${panel('Automation setup','Pending implementation and VPS connection','<div class="settings-section"><p>The scheduler, exclusive queue and worker API are ready. The VPS runner and Chrome extension must connect before jobs can execute.</p><ol class="setup-list"><li>Build and install the persistent VPS runner.</li><li>Load and pair the Chrome extension.</li><li>Validate download, editing and upload.</li><li>Enable scheduling after an end-to-end test.</li></ol><p>The existing Task Scheduler tasks have not been changed.</p></div>')}${panel('Account security','Update your administrator password','<form id="password-form" class="settings-section"><label>Current password<input name="current" type="password" autocomplete="current-password" required></label><label>New password<input name="password" type="password" minlength="14" autocomplete="new-password" required></label><button type="submit" class="button primary">Update password</button></form>')}</div>`;
     }
     if(generation!==pageGeneration)return;
-    content.innerHTML=html;synced();
+    content.innerHTML=html;synced();if(operationPages.includes(page))bindOperations();
     if(!isAdmin){
       content.querySelectorAll('[data-command]').forEach(button=>{if(!['job-log','refresh'].includes(button.dataset.command))button.remove();});
       $('#password-form')?.closest('.panel')?.remove();
@@ -105,8 +94,8 @@ async function pollLogs(){
     logRows=logRows.slice(-2000);paintLogs();$('#console-status').textContent='● Connected · checks every 2s';synced();
   }catch(error){if($('#console-status'))$('#console-status').textContent='Reconnecting · '+error.message;}finally{logBusy=false;}
 }
-function paintLogs(){const node=$('#console-output');if(!node)return;const search=($('#log-search')?.value||'').toLowerCase();const level=$('#log-level')?.value||'';const filtered=logRows.filter(r=>(!level||r.level===level)&&`${r.message} ${r.source}`.toLowerCase().includes(search));node.innerHTML=filtered.length?filtered.map(r=>`<div class="console-line"><span class="console-time">${esc(r.created_at.slice(11))}</span><span class="console-time">${r.job_id?'#'+r.job_id:'system'}</span><span class="console-source">${esc(r.source)}</span><span class="console-level ${esc(r.level)}">${esc(r.level.toUpperCase())}</span><span class="console-message">${esc(r.message)}</span></div>`).join(''):'<span class="console-empty">No matching events. New workspace events will appear here.</span>';if($('#autoscroll')?.checked)node.scrollTop=node.scrollHeight;}
-function downloadLogs(){const text=logRows.map(r=>`${r.created_at} UTC\t${r.job_id||'system'}\t${r.source}\t${r.level}\t${r.message}`).join('\n');const url=URL.createObjectURL(new Blob([text],{type:'text/plain;charset=utf-8'}));const a=document.createElement('a');a.href=url;a.download='astra-console-'+new Date().toISOString().slice(0,10)+'.txt';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}
+function paintLogs(){const node=$('#console-output');if(!node)return;const search=($('#log-search')?.value||'').toLowerCase();const level=$('#log-level')?.value||'';const filtered=logRows.filter(r=>(!level||r.level===level)&&`${r.message} ${r.source}`.toLowerCase().includes(search));node.innerHTML=filtered.length?filtered.map(r=>`<div class="console-line"><span class="console-time">${esc(slClock(r.created_at))}</span><span class="console-time">${r.job_id?'#'+r.job_id:'system'}</span><span class="console-source">${esc(r.source)}</span><span class="console-level ${esc(r.level)}">${esc(r.level.toUpperCase())}</span><span class="console-message">${esc(r.message)}</span></div>`).join(''):'<span class="console-empty">No matching events. New workspace events will appear here.</span>';if($('#autoscroll')?.checked)node.scrollTop=node.scrollHeight;}
+function downloadLogs(){const text=logRows.map(r=>`${date(r.created_at)} SL time\t${r.job_id||'system'}\t${r.source}\t${r.level}\t${r.message}`).join('\n');const url=URL.createObjectURL(new Blob([text],{type:'text/plain;charset=utf-8'}));const a=document.createElement('a');a.href=url;a.download='astra-console-'+new Date().toISOString().slice(0,10)+'.txt';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}
 
 async function modal(type){
   if(!isAdmin)return;
@@ -125,7 +114,7 @@ function closeMenu(){ $('.sidebar').classList.remove('open');$('#sidebar-scrim')
 $('#menu-toggle').onclick=()=>{const open=$('.sidebar').classList.toggle('open');$('#sidebar-scrim').hidden=!open;$('#menu-toggle').setAttribute('aria-expanded',String(open));};
 $('#sidebar-scrim').onclick=closeMenu;
 document.addEventListener('keydown',e=>{if(e.key==='Escape')closeMenu();});
-$('#refresh').onclick=render;
+$('#refresh').onclick=()=>render();
 if($('#logout'))$('#logout').onclick=async()=>{try{await api('logout',{});location.href='index.php';}catch(error){toast(error.message);}};
 content.addEventListener('click',async e=>{const button=e.target.closest('[data-command]');if(!button)return;const cmd=button.dataset.command;const id=Number(button.dataset.id);try{
   if(cmd==='new-job')return modal('job');if(cmd==='new-channel')return modal('channel');if(cmd==='new-schedule')return modal('schedule');if(cmd==='refresh')return render();
@@ -135,7 +124,7 @@ content.addEventListener('click',async e=>{const button=e.target.closest('[data-
   if(cmd==='toggle-channel')await api('channel_toggle',{id});if(cmd==='toggle-schedule')await api('schedule_toggle',{id});if(cmd==='cancel-job'){await api('job_cancel',{id});toast('Queued job cancelled.');}
   await render();
 }catch(error){toast(error.message);button.disabled=false;}});
-window.addEventListener('hashchange',render);
+window.addEventListener('hashchange',()=>render());
 setInterval(pollLogs,2000);
-setInterval(()=>{if(!document.hidden&&page==='overview'&&!$('#modal').open)render();},30000);
+
 render();
