@@ -59,6 +59,7 @@ function environment(command) {
   await vm.runInContext('poll()', env.context);
   assert.equal(env.results[0].ok, false);
   assert.equal(env.actions.length, 0);
+  assert.deepEqual(env.removed, [], 'Uncertain upload stays open for review');
 
   env = environment({...command, cancel: true});
   await vm.runInContext('poll()', env.context);

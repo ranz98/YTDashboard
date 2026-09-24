@@ -113,7 +113,12 @@ async function until(command, operation, milliseconds = 120000, interval = 3000)
 }
 
 async function finish(active, result) {
-  if (active.tabId) {
+  const reviewUpload = active.action === 'upload' && !result.ok;
+  if (active.tabId && reviewUpload) {
+    // Leave uncertain uploads visible for reconciliation; never submit them again.
+    try { await chrome.debugger.detach({tabId: active.tabId}); } catch (_) {}
+  }
+  if (active.tabId && !reviewUpload) {
     try { await chrome.tabs.remove(active.tabId); }
     catch (_) {
       // A missing tab is already stopped; other failures must not release the lease.
@@ -179,7 +184,8 @@ async function execute(command) {
     await until(command, () => inTab(tab.id, 'publish-ready'), 5400000, 10000);
     await checkpoint(command);
     await inTab(tab.id, 'publish');
-    const youtube_id = await until(command, () => inTab(tab.id, 'confirmation'), 300000, 5000);
+    // SD processing can continue after Publish; only a publication receipt completes the task.
+    const youtube_id = await until(command, () => inTab(tab.id, 'confirmation'), 5400000, 10000);
     await finish(active, {ok: true, publication_confirmed: true, youtube_id});
   } catch (error) {
     await finish(active, {ok: false, error: String(error.message).slice(0, 400)});

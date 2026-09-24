@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Astra VPS Agents",
-  "version": "1.1.1",
+  "version": "1.1.2",
   "minimum_chrome_version": "120",
   "description": "Runs Astra channel scans and verified YouTube Studio uploads on this VPS.",
   "permissions": ["alarms", "storage", "tabs", "scripting", "debugger", "declarativeNetRequest"],
