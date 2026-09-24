@@ -5,7 +5,7 @@ const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 async function bridge(path, value) {
   const {token} = await chrome.storage.local.get('token');
   if (!token) throw new Error('Pair the extension first.');
-  const response = await fetch('http://127.0.0.1:8765' + path, {
+  const response = await fetch('http://127.0.0.1:18765' + path, {
     method: value ? 'POST' : 'GET',
     headers: {'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json'},
     body: value ? JSON.stringify(value) : undefined,

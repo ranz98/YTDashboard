@@ -4,14 +4,24 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 from pathlib import Path
 import re
+import socket
 import threading
 import time
 
 from runner import read, save
 
 
+class ExclusiveServer(ThreadingHTTPServer):
+    allow_reuse_address = False
+
+    def server_bind(self):
+        if hasattr(socket, 'SO_EXCLUSIVEADDRUSE'):
+            self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
+        super().server_bind()
+
+
 class Bridge:
-    def __init__(self, base, token, port=8765):
+    def __init__(self, base, token, port=18765):
         self.base, self.token = Path(base), token
         self.seen = 0
         self.lock = threading.Lock()
@@ -69,7 +79,10 @@ class Bridge:
                 except (ValueError, KeyError):
                     self.reply(400, {})
 
-        self.server = ThreadingHTTPServer(('127.0.0.1', port), Handler)
+        try:
+            self.server = ExclusiveServer(('127.0.0.1', port), Handler)
+        except OSError as error:
+            raise RuntimeError(f'Astra cannot bind to 127.0.0.1:{port}. Another process may be using it; close the other Astra runner and retry.') from error
 
     def start(self):
         threading.Thread(target=self.server.serve_forever, daemon=True).start()

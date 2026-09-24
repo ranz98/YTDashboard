@@ -40,6 +40,10 @@ class MailboxTests(unittest.TestCase):
         self.assertEqual(caught.exception.code, 401)
         self.assertFalse(self.bridge.ready())
 
+    def test_second_server_cannot_share_port(self):
+        with self.assertRaises(RuntimeError):
+            Bridge(self.base, 'b' * 64, port=self.bridge.server.server_port)
+
     def test_mailbox_roundtrip_and_stale_result(self):
         save(self.base / 'data/browser-command.json', {'id': 'one', 'action': 'fetch'})
         self.assertEqual(self.call('/command')['command']['id'], 'one')

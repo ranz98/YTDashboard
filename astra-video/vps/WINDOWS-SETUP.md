@@ -33,6 +33,10 @@ changing that selection. Uploads are Public at the configured post slot.
 
 ## Lightweight update
 
+Astra now uses local port **18765** to avoid older scripts on port 8765. Update
+both the runner files and the Chrome extension together. Only one server can
+bind the new port; a conflict stops startup with an error. Pairing keys stay valid.
+
 Stop the runner and wait for any active task to stop. Extract this package over
 the existing Astra folder. Run `install.cmd` to save the chosen Python path;
 existing dashboard configuration and pairing are preserved. In `chrome://extensions`,
