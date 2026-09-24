@@ -22,7 +22,9 @@ Live: https://lightblue-mantis-659122.hostingersite.com/astra/
 
 ## What is pending
 
-The persistent VPS runner and Chrome execution adapters are not connected.
+The Windows runner is in `vps/runner.py`, with setup and sign-in startup scripts.
+See `vps/README.md` for installation and its stage command contract.
+The Chrome execution adapters are not connected; no stages are enabled by default.
 The PHP scheduler is advanced by authenticated worker polls, so a closed dashboard
 does not stop it. Until a worker connects, countdowns show planned slots and no
 videos are fetched, edited or uploaded. YouTube audience analytics are also not connected.

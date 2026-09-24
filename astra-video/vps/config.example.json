@@ -1,0 +1,6 @@
+{
+  "url": "https://lightblue-mantis-659122.hostingersite.com/astra/",
+  "token": "PUT_WORKER_TOKEN_HERE",
+  "commands": {},
+  "stage_timeout_seconds": 7200
+}
