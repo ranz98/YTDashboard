@@ -10,6 +10,7 @@ Live: https://lightblue-mantis-659122.hostingersite.com/astra/
 - Admin sign-in for saving channels, queuing jobs, pausing schedules and account changes.
 - MySQL persistence and console updates every two seconds while visible.
 - Responsive navigation and layouts for phones.
+- Dark surfaces and high-contrast text throughout the dashboard.
 - FTPS deployment with certificate checks, file verification and local backups.
 
 ## What is pending
@@ -38,6 +39,7 @@ Use Python 3.10 or newer. The deploy scripts use the standard library.
 ```powershell
 python deploy/push_hostinger.py --inspect
 python deploy/push_hostinger.py
+python deploy/push_hostinger.py --root-redirect
 ```
 
 The script prompts for the FTP password. It uploads only `dashboard/public/`
@@ -45,6 +47,9 @@ to `/public_html/astra/`, preserves the installed private configuration, verifie
 each uploaded file and backs up changed remote files under `data/`.
 Other files in `public_html` are not touched. FTPS validates Hostinger's provider
 certificate (`hstgr.io`) while connecting to the configured FTP IP.
+
+Use `--root-redirect` to also install a small `public_html/index.php` redirect
+to `/astra/`. An existing root index is backed up before replacement.
 
 On a new installation, create a private `bootstrap.php` file returning an array
 with a cryptographically random `setup_token`, then deploy. Run

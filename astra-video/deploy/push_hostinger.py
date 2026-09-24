@@ -33,6 +33,7 @@ def main():
     p.add_argument('--user', default='u518245900.lightblue-mantis-659122.hostingersite.com')
     p.add_argument('--remote', default='/public_html/astra')
     p.add_argument('--inspect', action='store_true')
+    p.add_argument('--root-redirect', action='store_true', help='Make the main website address open /astra/')
     args = p.parse_args()
     if not args.remote.startswith('/public_html/') or '..' in args.remote.split('/'):
         p.error('Destination must be a subdirectory of /public_html')
@@ -54,13 +55,15 @@ def main():
         stamp = datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')
         backup = ROOT / 'data' / 'deployment-backups' / stamp
         manifest = []
-        for local in sorted(source.rglob('*')):
+        files = [(local, local.relative_to(source).as_posix()) for local in sorted(source.rglob('*'))]
+        if args.root_redirect:
+            files.append((ROOT / 'deploy/site-root/index.php', '../index.php'))
+        for local, relative in files:
             if not local.is_file() or '__pycache__' in local.parts:
                 continue
-            relative = local.relative_to(source).as_posix()
             if relative == 'private/config.php':
                 continue
-            remote = posixpath.join(args.remote, relative)
+            remote = '/public_html/index.php' if relative == '../index.php' else posixpath.join(args.remote, relative)
             ftp.cwd('/')
             ensure_dir(ftp, posixpath.dirname(remote))
             name = posixpath.basename(remote)
@@ -80,7 +83,7 @@ def main():
             if found and payload == existing.getvalue():
                 continue
             if found:
-                saved = backup / relative
+                saved = backup / ('site-root/index.php' if relative == '../index.php' else relative)
                 saved.parent.mkdir(parents=True, exist_ok=True)
                 saved.write_bytes(existing.getvalue())
             temporary = '.' + name + '.upload-' + stamp
