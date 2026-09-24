@@ -4,3 +4,4 @@ __pycache__/
 dashboard/public/private/config.php
 dashboard/public/private/bootstrap.php
 deploy/.local-*
+dashboard/public/downloads/*.zip

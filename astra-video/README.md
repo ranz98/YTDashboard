@@ -4,6 +4,9 @@ Public, read-only video operations dashboard built with PHP, MySQL and plain Jav
 
 Live: https://lightblue-mantis-659122.hostingersite.com/astra/
 
+Windows package: https://lightblue-mantis-659122.hostingersite.com/astra/downloads/Astra-Windows-VPS.zip
+Extract the whole folder and read `START-HERE.md` before starting.
+
 ## What works
 
 - Public overview, channels, jobs, schedules, video library, analytics and console.
