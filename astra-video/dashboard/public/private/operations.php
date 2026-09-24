@@ -243,11 +243,19 @@ function handle_operations(PDO $pdo, string $action, array $body): array {
             }
         } elseif ($agent==='editor') queue_edits($pdo);
         elseif ($agent==='uploader') {
+            $immediate=($body['immediate']??false)===true;
+            if ($immediate) {
+                if ($gate['paused']) throw new InvalidArgumentException('Start the pipeline before uploading now.');
+                if (!(int)$pdo->query("SELECT enabled FROM agents WHERE name='uploader'")->fetchColumn()) throw new InvalidArgumentException('Enable the upload agent first.');
+                $posted=(int)$pdo->query("SELECT COUNT(*) FROM video_progress WHERE published_at >= DATE(DATE_ADD(UTC_TIMESTAMP(),INTERVAL 330 MINUTE))-INTERVAL 330 MINUTE")->fetchColumn();
+                if ($posted>=3) throw new InvalidArgumentException('Today’s limit of three posts has been reached (Sri Lanka time).');
+            }
             if (upload_pending($pdo)) throw new InvalidArgumentException('An upload is already queued or needs attention. Resolve it before queuing another.');
             $video=ready_video($pdo);
             if (!$video) throw new InvalidArgumentException('Nothing can be posted. A successfully edited, unblocked video is required.');
-            $due=$pdo->query("SELECT next_run FROM agents WHERE name='uploader'")->fetchColumn();
+            $due=$immediate?null:$pdo->query("SELECT next_run FROM agents WHERE name='uploader'")->fetchColumn();
             insert_task($pdo,'uploader',(int)$video['channel_id'],(int)$video['job_id'],'uploader:'.$video['job_id'],$due?:null);
+            if ($immediate) event($pdo,(int)$video['job_id'],'uploader','info','Upload now queued. Waiting for the worker and exclusive execution slot.');
         } else throw new InvalidArgumentException('Unknown agent.');
         event($pdo,null,$agent,'info','Manual queue request saved. Paused agents will wait until started.');
     } elseif ($action==='task_skip' || $action==='task_retry') {
