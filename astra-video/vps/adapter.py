@@ -117,7 +117,7 @@ def edit(task, request):
     key_path = ROOT / 'config/deepseek-key.txt'
     if not environment.get('DEEPSEEK_API_KEY') and key_path.exists():
         environment['DEEPSEEK_API_KEY'] = key_path.read_text(encoding='utf-8').strip()
-    subprocess.run([str(value) for value in [editor_python, editor, source, '--rewrite', '--no-stage',
+    subprocess.run([str(value) for value in [editor_python, BASE / 'economy_editor.py', editor, source, '--rewrite', '--no-stage',
         '--filter', task['channel'].get('preset') or 'vivid', '-o', temporary]],
         check=True, cwd=editor.parent, env=environment)
     rendered = verify(temporary)

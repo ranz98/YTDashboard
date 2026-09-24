@@ -111,3 +111,13 @@ Python environment. Installing modern `winrt` alone does not satisfy this editor
 
 After updating, run `install.cmd`, then `start.cmd`. Retry one failed editor task
 from the dashboard after the OCR test passes. Existing downloads stay in place.
+
+## DeepSeek economy settings
+
+The runner launches the original editor through `economy_editor.py`. This wrapper
+changes only runtime API settings: `deepseek-flash`, thinking disabled, 256 maximum
+output tokens, one rewrite attempt for each caption/title, and no SDK retries.
+There are at most two outbound API requests per editor run. Completed identical
+rewrites are cached privately under `data/rewrite-cache`, avoiding repeat charges
+when a render is retried. Fewer wording attempts can reduce rewrite refinement.
+The original editor files and rendering logic remain unchanged.
