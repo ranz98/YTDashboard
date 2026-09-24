@@ -27,9 +27,9 @@ def main():
     assert json.loads(open_status(public,base+'api.php?action=health',200))['installed']
     html=open_status(public,base+'index.php',200)
     assert 'content="public"' in html
-    for action in ['overview','jobs','channels','schedules','logs','analytics','settings']:
+    for action in ['overview','jobs','channels','schedules','logs','analytics','settings','operations','errors','video_checks']:
         assert 'error' not in json.loads(open_status(public,base+'api.php?action='+action,200))
-    for action in ['queue','channel_save','channel_toggle','schedule_save','schedule_toggle','job_cancel','password_change','logout']:
+    for action in ['queue','channel_save','channel_toggle','schedule_save','schedule_toggle','job_cancel','password_change','logout','pipeline_control','agent_control','agent_schedule','agent_run','task_skip','task_retry','operations_migrate','worker_register','queue_checks']:
         open_status(public,base+'api.php?action='+action,401,b'{}',{'Content-Type':'application/json'})
     for path in ['private/config.php','private/bootstrap.php','private/schema.sql','setup.php']:
         open_status(public,base+path,403)
@@ -48,6 +48,27 @@ def main():
     open_status(client,base+'api.php?action=channel_save',422,b'{"name":"Invalid","handle":"not-a-handle"}',{'Content-Type':'application/json','X-CSRF-Token':csrf})
     open_status(client,base+'api.php?action=queue',405)
     print('PASS: CSRF, invalid job/channel rejection, method enforcement')
+    response=json.loads(open_status(client,base+'api.php?action=queue_checks',200,b'{}',{'Content-Type':'application/json','X-CSRF-Token':csrf}))
+    assert response['ok'] and response['fixtures']=='rolled back'
+    print('PASS:',len(response['checks']),'transactional queue checks')
+    ops=json.loads(open_status(public,base+'api.php?action=operations',200))
+    assert ops['timezone']=='Asia/Colombo' and ops['fetch_limit']==5
+    assert len(next(a for a in ops['agents'] if a['name']=='fetch')['slots'])==3
+    assert len(next(a for a in ops['agents'] if a['name']=='uploader')['slots'])==3
+    assert all('lease_hash' not in task for task in ops['tasks'])
+    print('PASS: Sri Lanka display, latest-five policy, daily slots and lease privacy')
+    headers={'Content-Type':'application/json','X-CSRF-Token':csrf}
+    invalid=json.dumps({'agent':'fetch','slots':['08:00','08:00','08:00']}).encode()
+    open_status(client,base+'api.php?action=agent_schedule',422,invalid,headers)
+    if not ops['online'] and ops['paused']:
+        try:
+            open_status(client,base+'api.php?action=pipeline_control',200,b'{"command":"start"}',headers)
+            assert not json.loads(open_status(public,base+'api.php?action=operations',200))['paused']
+        finally:
+            open_status(client,base+'api.php?action=pipeline_control',200,b'{"command":"stop"}',headers)
+        assert json.loads(open_status(public,base+'api.php?action=operations',200))['paused']
+        print('PASS: start/stop persist and restore the paused state')
+    open_status(public,base+'worker.php',401,b'{"action":"claim"}',{'Content-Type':'application/json'})
     open_status(client,base+'api.php?action=logout',200,b'{}',{'Content-Type':'application/json','X-CSRF-Token':csrf})
     open_status(client,base+'api.php?action=overview',200)
     open_status(client,base+'api.php?action=queue',401,b'{}',{'Content-Type':'application/json','X-CSRF-Token':csrf})

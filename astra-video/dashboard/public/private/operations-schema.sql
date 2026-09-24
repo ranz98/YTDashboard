@@ -1,0 +1,67 @@
+CREATE TABLE IF NOT EXISTS agents (
+ name VARCHAR(16) PRIMARY KEY,
+ enabled TINYINT NOT NULL DEFAULT 1,
+ slots TEXT NOT NULL,
+ schedule_timezone VARCHAR(64) NOT NULL DEFAULT 'America/New_York',
+ next_run DATETIME NULL,
+ last_started DATETIME NULL,
+ last_finished DATETIME NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+CREATE TABLE IF NOT EXISTS execution_gate (
+ id INT PRIMARY KEY,
+ paused TINYINT NOT NULL DEFAULT 1,
+ current_task BIGINT UNSIGNED NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+CREATE TABLE IF NOT EXISTS pipeline_tasks (
+ id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+ agent VARCHAR(16) NOT NULL,
+ channel_id BIGINT UNSIGNED NOT NULL,
+ job_id BIGINT UNSIGNED NULL,
+ state VARCHAR(24) NOT NULL DEFAULT 'queued',
+ request_key VARCHAR(190) NOT NULL UNIQUE,
+ scheduled_at DATETIME NOT NULL,
+ started_at DATETIME NULL,
+ finished_at DATETIME NULL,
+ heartbeat_at DATETIME NULL,
+ worker_name VARCHAR(100) NULL,
+ lease_hash CHAR(64) NULL,
+ stop_requested TINYINT NOT NULL DEFAULT 0,
+ attempts INT NOT NULL DEFAULT 0,
+ progress SMALLINT NOT NULL DEFAULT 0,
+ reason TEXT NULL,
+ created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ FOREIGN KEY(channel_id) REFERENCES channels(id),
+ FOREIGN KEY(job_id) REFERENCES jobs(id),
+ INDEX dispatch(state,scheduled_at),
+ INDEX task_job(job_id,agent)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+CREATE TABLE IF NOT EXISTS video_progress (
+ job_id BIGINT UNSIGNED PRIMARY KEY,
+ channel_id BIGINT UNSIGNED NOT NULL,
+ source_video_id VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+ downloaded_at DATETIME NOT NULL,
+ edited_at DATETIME NULL,
+ title_ready TINYINT NOT NULL DEFAULT 0,
+ published_at DATETIME NULL,
+ blocked_reason VARCHAR(1000) NULL,
+ UNIQUE KEY channel_video(channel_id,source_video_id),
+ FOREIGN KEY(job_id) REFERENCES jobs(id),
+ FOREIGN KEY(channel_id) REFERENCES channels(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+CREATE TABLE IF NOT EXISTS worker_keys (
+ name VARCHAR(100) PRIMARY KEY,
+ token_hash CHAR(64) NOT NULL,
+ created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+CREATE TABLE IF NOT EXISTS fetch_observations (
+ task_id BIGINT UNSIGNED NOT NULL,
+ source_video_id VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+ title VARCHAR(255) NOT NULL,
+ result VARCHAR(24) NOT NULL,
+ reason VARCHAR(1000) NULL,
+ job_id BIGINT UNSIGNED NULL,
+ checked_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ PRIMARY KEY(task_id,source_video_id),
+ FOREIGN KEY(task_id) REFERENCES pipeline_tasks(id),
+ FOREIGN KEY(job_id) REFERENCES jobs(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

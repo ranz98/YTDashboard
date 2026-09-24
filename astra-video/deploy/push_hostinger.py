@@ -34,6 +34,7 @@ def main():
     p.add_argument('--remote', default='/public_html/astra')
     p.add_argument('--inspect', action='store_true')
     p.add_argument('--root-redirect', action='store_true', help='Make the main website address open /astra/')
+    p.add_argument('--only', nargs='+', help='Deploy selected paths relative to dashboard/public')
     args = p.parse_args()
     if not args.remote.startswith('/public_html/') or '..' in args.remote.split('/'):
         p.error('Destination must be a subdirectory of /public_html')
@@ -56,6 +57,10 @@ def main():
         backup = ROOT / 'data' / 'deployment-backups' / stamp
         manifest = []
         files = [(local, local.relative_to(source).as_posix()) for local in sorted(source.rglob('*'))]
+        if args.only:
+            files = [(local, relative) for local, relative in files if relative in args.only]
+            if {relative for _, relative in files} != set(args.only):
+                raise ValueError('One or more selected paths do not exist.')
         if args.root_redirect:
             files.append((ROOT / 'deploy/site-root/index.php', '../index.php'))
         for local, relative in files:

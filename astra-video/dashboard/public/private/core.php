@@ -67,15 +67,19 @@ function event(PDO $pdo, ?int $job, string $source, string $level, string $messa
 function schema(PDO $pdo): void {
     $sql = file_get_contents(__DIR__.'/schema.sql');
     foreach (explode(';', $sql) as $statement) if (trim($statement)) $pdo->exec($statement);
+    require_once __DIR__.'/operations.php';
+    migrate_operations($pdo);
 }
 
 function enqueue(PDO $pdo, int $channelId): int {
+    lock_gate($pdo);
     $q=$pdo->prepare('SELECT id,enabled FROM channels WHERE id=? FOR UPDATE'); $q->execute([$channelId]);
     $channel=$q->fetch();
     if (!$channel || !$channel['enabled']) throw new InvalidArgumentException('Choose an enabled channel.');
-    $q=$pdo->prepare("SELECT id FROM jobs WHERE channel_id=? AND status IN ('queued','discovering','downloading','editing','ready','uploading','verifying','needs_attention') LIMIT 1");
+    $q=$pdo->prepare("SELECT id FROM pipeline_tasks WHERE channel_id=? AND agent='fetch' AND state IN ('queued','running') LIMIT 1");
     $q->execute([$channelId]); $old=$q->fetchColumn();
     if ($old) return (int)$old;
-    $q=$pdo->prepare("INSERT INTO jobs(channel_id,status,stage) VALUES (?,'queued','discover')"); $q->execute([$channelId]);
-    $id=(int)$pdo->lastInsertId(); event($pdo,$id,'dashboard','info','Job queued; waiting for a connected worker.'); return $id;
+    $id=insert_task($pdo,'fetch',$channelId,null,'manual:'.bin2hex(random_bytes(12)));
+    event($pdo,null,'fetch','info','Fetch task #'.$id.' queued for the latest five videos.');
+    return $id;
 }

@@ -1,18 +1,29 @@
 <?php
 declare(strict_types=1);
 require __DIR__.'/private/core.php';
+require __DIR__.'/private/operations.php';
 header('Cache-Control: no-store');
 $action=$_GET['action']??'overview';
-if ($action==='health') json_response(['service'=>'astra-video','version'=>'0.1.0','installed'=>configuration()!==null]);
+if ($action==='health') json_response(['service'=>'astra-video','version'=>'0.2.0','installed'=>configuration()!==null]);
 if (!configuration()) json_response(['error'=>'Complete setup first.'],503);
-$read=['overview','jobs','channels','schedules','logs','analytics','settings'];
+$read=['overview','jobs','channels','schedules','logs','analytics','settings','operations','errors','video_checks'];
 if (!in_array($action,$read,true)) require_admin();
 try {
     $pdo=db();
     if (in_array($action,$read,true) && $_SERVER['REQUEST_METHOD']!=='GET') json_response(['error'=>'Method not allowed.'],405);
     if (!in_array($action,$read,true) && $_SERVER['REQUEST_METHOD']!=='POST') json_response(['error'=>'Method not allowed.'],405);
+    if ($action==='operations') json_response(operations_snapshot($pdo));
+    if ($action==='errors') {
+        $events=$pdo->query("SELECT e.*,c.name channel_name,j.title FROM events e LEFT JOIN jobs j ON j.id=e.job_id LEFT JOIN channels c ON c.id=j.channel_id WHERE e.level IN ('error','warning') ORDER BY e.id DESC LIMIT 200")->fetchAll();
+        $tasks=$pdo->query("SELECT t.id,t.agent,t.state,t.reason,t.job_id,t.started_at,t.finished_at,c.name channel_name FROM pipeline_tasks t JOIN channels c ON c.id=t.channel_id WHERE t.state IN ('failed','blocked','skipped','needs_attention') OR (t.state='running' AND t.heartbeat_at<UTC_TIMESTAMP()-INTERVAL 120 SECOND) ORDER BY t.id DESC LIMIT 200")->fetchAll();
+        json_response(['events'=>$events,'tasks'=>$tasks]);
+    }
+    if ($action==='video_checks') {
+        $rows=$pdo->query('SELECT j.*,c.name channel_name,v.downloaded_at,v.edited_at,v.title_ready,v.published_at,v.blocked_reason FROM jobs j JOIN channels c ON c.id=j.channel_id LEFT JOIN video_progress v ON v.job_id=j.id WHERE j.source_video_id IS NOT NULL ORDER BY j.id DESC LIMIT 200')->fetchAll();
+        json_response(['items'=>$rows]);
+    }
     if ($action==='overview') {
-        $stats=$pdo->query("SELECT COUNT(*) total,COALESCE(SUM(status='published'),0) published,COALESCE(SUM(status='published' AND DATE(finished_at)=UTC_DATE()),0) published_today,COALESCE(SUM(status='queued'),0) queued,COALESCE(SUM(status IN ('failed','needs_attention')),0) failed,COALESCE(SUM(status IN ('discovering','downloading','editing','uploading','verifying')),0) active FROM jobs")->fetch();
+        $stats=$pdo->query("SELECT COUNT(*) total,COALESCE(SUM(status='published'),0) published,COALESCE(SUM(status='published' AND DATE(DATE_ADD(finished_at,INTERVAL 330 MINUTE))=DATE(DATE_ADD(UTC_TIMESTAMP(),INTERVAL 330 MINUTE))),0) published_today,COALESCE(SUM(status='queued'),0) queued,COALESCE(SUM(status IN ('failed','needs_attention')),0) failed,COALESCE(SUM(status IN ('discovering','downloading','editing','uploading','verifying')),0) active FROM jobs")->fetch();
         $stats['channels']=(int)$pdo->query('SELECT COUNT(*) FROM channels WHERE enabled=1')->fetchColumn();
         $workers=$pdo->query('SELECT *,TIMESTAMPDIFF(SECOND,last_seen,UTC_TIMESTAMP()) age_seconds FROM workers')->fetchAll();
         $jobs=$pdo->query('SELECT j.*,c.name channel_name,c.handle FROM jobs j JOIN channels c ON c.id=j.channel_id ORDER BY j.id DESC LIMIT 8')->fetchAll();
@@ -30,12 +41,24 @@ try {
         json_response(['items'=>$q->fetchAll(),'time'=>gmdate('c')]);
     }
     if ($action==='analytics') {
-        $days=$pdo->query("SELECT DATE(created_at) day,COUNT(*) jobs,SUM(status='published') published,SUM(status='failed') failed FROM jobs WHERE created_at>=UTC_DATE()-INTERVAL 29 DAY GROUP BY DATE(created_at) ORDER BY day")->fetchAll();
+        $days=$pdo->query("SELECT DATE(DATE_ADD(created_at,INTERVAL 330 MINUTE)) day,COUNT(*) jobs,SUM(status='published') published,SUM(status='failed') failed FROM jobs WHERE created_at>=DATE(DATE_ADD(UTC_TIMESTAMP(),INTERVAL 330 MINUTE))-INTERVAL 330 MINUTE-INTERVAL 29 DAY GROUP BY DATE(DATE_ADD(created_at,INTERVAL 330 MINUTE)) ORDER BY day")->fetchAll();
         $totals=$pdo->query("SELECT COUNT(*) jobs,COALESCE(SUM(status='published'),0) published,COALESCE(SUM(status='failed'),0) failed,ROUND(AVG(CASE WHEN status='published' THEN TIMESTAMPDIFF(SECOND,created_at,finished_at) END)) average_seconds FROM jobs")->fetch();
         json_response(['days'=>$days,'totals'=>$totals]);
     }
-    if ($action==='settings') json_response(['version'=>'0.1.0','database'=>'Connected','timezone'=>'UTC','automation_available'=>false,'workers'=>$pdo->query('SELECT name,kind,version,last_seen FROM workers ORDER BY id')->fetchAll()]);
+    if ($action==='settings') json_response(['version'=>'0.2.0','database'=>'Connected','timezone'=>'Asia/Colombo','automation_available'=>false,'workers'=>$pdo->query('SELECT name,kind,version,last_seen FROM workers ORDER BY id')->fetchAll()]);
     $body=input();
+    if (in_array($action,['operations_migrate','pipeline_control','agent_control','agent_schedule','agent_run','task_skip','task_retry'],true)) json_response(handle_operations($pdo,$action,$body));
+    if ($action==='queue_checks') {
+        require __DIR__.'/private/queue-checks.php';
+        json_response(run_queue_checks($pdo));
+    }
+    if ($action==='worker_register') {
+        $name=trim((string)($body['name']??''));
+        if (!preg_match('/^[a-zA-Z0-9_-]{3,60}$/',$name)) throw new InvalidArgumentException('Use a short worker name.');
+        $token=bin2hex(random_bytes(32));
+        $q=$pdo->prepare('INSERT INTO worker_keys(name,token_hash) VALUES (?,?) ON DUPLICATE KEY UPDATE token_hash=VALUES(token_hash)');$q->execute([$name,hash('sha256',$token)]);
+        json_response(['name'=>$name,'token'=>$token]);
+    }
     if ($action==='channel_save') {
         $name=trim((string)($body['name']??'')); $handle=trim((string)($body['handle']??'')); $destination=trim((string)($body['destination']??'')); $preset=(string)($body['preset']??'vivid');
         if(!$name || mb_strlen($name)>120 || !preg_match('/^@[\p{L}\p{N}_.-]{2,100}$/u',$handle) || mb_strlen($destination)>120) throw new InvalidArgumentException('Enter a name, a valid @channel handle, and a destination under 120 characters.');
@@ -76,5 +99,8 @@ try {
     if(isset($pdo)&&$pdo->inTransaction()) $pdo->rollBack();
     $duplicate=$e instanceof PDOException && $e->getCode()==='23000';
     error_log('Astra API error: '.$e->getMessage());
+    if (!$duplicate && isset($pdo)) {
+        try { event($pdo,null,'api','error','A dashboard request failed ('.preg_replace('/[^a-z_]/','',$action).'). Check the server log for details.'); } catch (Throwable) {}
+    }
     json_response(['error'=>$duplicate?'That entry already exists.':'The request could not be completed. Please try again.'],$duplicate?409:500);
 }
