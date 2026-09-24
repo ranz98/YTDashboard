@@ -301,9 +301,15 @@ def ocr_windows(image_path):
     """
     try:
         import asyncio
-        from winsdk.windows.graphics.imaging import BitmapDecoder
-        from winsdk.windows.media.ocr import OcrEngine
-        from winsdk.windows.storage import FileAccessMode, StorageFile
+        try:
+            from winrt.windows.graphics.imaging import BitmapDecoder
+            from winrt.windows.media.ocr import OcrEngine
+            from winrt.windows.storage import FileAccessMode, StorageFile
+        except ImportError:
+            # Keep older installations working with their existing SDK.
+            from winsdk.windows.graphics.imaging import BitmapDecoder
+            from winsdk.windows.media.ocr import OcrEngine
+            from winsdk.windows.storage import FileAccessMode, StorageFile
     except ImportError:
         return None
 

@@ -1,8 +1,10 @@
 @echo off
 cd /d "%~dp0"
-py -3.11 -m venv .venv
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0find-python.ps1"
 if errorlevel 1 goto failed
-.venv\Scripts\python.exe -m pip install -r requirements.txt
+.venv\Scripts\python.exe -m pip install --upgrade pip
+if errorlevel 1 goto failed
+.venv\Scripts\python.exe -m pip install --only-binary=:all: -r requirements.txt
 if errorlevel 1 goto failed
 where ffmpeg >nul 2>&1
 if errorlevel 1 goto ffmpeg

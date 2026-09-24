@@ -1,8 +1,13 @@
 yt-dlp[default]
-opencv-python
+opencv-python>=4,<5
 numpy
 Pillow
-openai
+openai>=1,<3
 httpx
-winsdk; sys_platform == 'win32'
+winrt-Windows.Media.Ocr>=3.2.1; sys_platform == 'win32'
+winrt-Windows.Graphics.Imaging>=3.2.1; sys_platform == 'win32'
+winrt-Windows.Storage>=3.2.1; sys_platform == 'win32'
+winrt-Windows.Storage.Streams>=3.2.1; sys_platform == 'win32'
+winrt-Windows.Foundation>=3.2.1; sys_platform == 'win32'
+winrt-Windows.Globalization>=3.2.1; sys_platform == 'win32'
 pytesseract

@@ -29,7 +29,10 @@ def main():
         failures.append('Put your DeepSeek key in config/deepseek-key.txt under the main Astra folder.')
     ocr = False
     try:
-        from winsdk.windows.media.ocr import OcrEngine
+        try:
+            from winrt.windows.media.ocr import OcrEngine
+        except ImportError:
+            from winsdk.windows.media.ocr import OcrEngine
         ocr = OcrEngine.try_create_from_user_profile_languages() is not None
     except Exception:
         pass

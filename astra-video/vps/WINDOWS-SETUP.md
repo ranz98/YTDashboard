@@ -1,11 +1,13 @@
 # Run Astra on your Windows VPS
 
 1. Extract the complete `ASTRA` folder to `C:\Astra`. Keep its subfolders together.
-2. Install **Python 3.11 (64-bit)** with the Python launcher, **Google Chrome**,
+2. Use your installed **Python 3.10 or newer (64-bit)**, **Google Chrome**,
    **Node.js 22 or newer**, and **FFmpeg**. Add FFmpeg's `bin` folder to PATH.
    Both `ffmpeg` and `ffprobe` must work in a new Command Prompt. Windows OCR
    needs an English language pack. If unavailable on Windows Server, install
    Tesseract with English data and add it to PATH. The installer checks this.
+   The installer detects Python automatically; Python 3.11 specifically and the
+   Python launcher are not required. It preserves an existing working environment.
 3. Double-click `C:\Astra\astra-video\vps\install.cmd`.
    Enter the **dashboard admin login** and your DeepSeek API key when prompted.
 4. In the Chrome profile you will keep running, sign in to YouTube Studio and
