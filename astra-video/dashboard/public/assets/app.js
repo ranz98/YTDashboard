@@ -31,7 +31,7 @@ async function api(action, body, query = '') {
 }
 function toast(message){ const node=$('#toast');node.textContent=message;node.hidden=false;clearTimeout(toast.timer);toast.timer=setTimeout(()=>node.hidden=true,4500); }
 function date(value){ if(!value)return '—';const d=new Date(value.includes('T')?value:value.replace(' ','T')+'Z');return Number.isNaN(d.valueOf())?'—':d.toLocaleString(undefined,{timeZone:'Asia/Colombo',month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}); }
-function badge(status){const color=['published','connected','success','enabled'].includes(status)?'green':['queued','ready','needs_attention'].includes(status)?'amber':['failed','error'].includes(status)?'red':'';return `<span class="badge ${color}">${esc(status.replaceAll('_',' '))}</span>`;}
+function badge(status){const color=['published','connected','success','enabled','completed','downloaded'].includes(status)?'green':['queued','ready','needs_attention'].includes(status)?'amber':['failed','error','blocked'].includes(status)?'red':'';return `<span class="badge ${color}">${esc(status.replaceAll('_',' '))}</span>`;}
 function empty(title, text, action='', symbol='▤'){return `<div class="empty"><span class="empty-symbol">${symbol}</span><h3>${esc(title)}</h3><p>${esc(text)}</p>${action}</div>`;}
 function stat(label,value,foot,icon='◫'){return `<article class="stat"><div class="stat-top"><span>${esc(label)}</span><span class="stat-icon">${icon}</span></div><div class="stat-value">${esc(value)}</div><div class="stat-bottom">${foot}</div></article>`;}
 function panel(title,sub,body,extra=''){return `<section class="panel"><div class="panel-header"><div><h2>${title}</h2>${sub?`<p class="panel-sub">${sub}</p>`:''}</div>${extra}</div>${body}</section>`;}
@@ -39,13 +39,14 @@ function jobsTable(rows, compact=false){
   if(!rows.length)return empty('Your first run starts here','Add a source channel, then queue a job. Its progress will appear here.','<button class="button small" data-command="new-job">＋ Queue a job</button>','▷');
   return `<div class="table-wrap"><table><thead><tr><th>Job / Channel</th><th>Status</th>${compact?'':'<th>Stage</th>'}<th>Created</th><th></th></tr></thead><tbody>${rows.map(j=>`<tr><td><strong>#${j.id} · ${esc(j.channel_name)}</strong><small>${esc(j.title||j.handle)}</small></td><td>${badge(j.status)}</td>${compact?'':`<td>${esc(j.stage)}</td>`}<td>${date(j.created_at)}</td><td><div class="table-actions"><button class="button small" data-command="job-log" data-id="${j.id}">Logs</button>${j.status==='queued'?`<button class="button small danger" data-command="cancel-job" data-id="${j.id}">Cancel</button>`:''}</div></td></tr>`).join('')}</tbody></table></div>`;
 }
-function synced(){ $('#connection-pill').innerHTML='<span class="status-dot"></span> Connected';$('#last-sync').textContent='Last synced '+new Date().toLocaleTimeString(undefined,{timeZone:'Asia/Colombo'})+' SL time'; }
+function synced(){ $('#connection-pill').innerHTML='<span class="status-dot"></span> Data synced';$('#last-sync').textContent='Last synced '+new Date().toLocaleTimeString(undefined,{timeZone:'Asia/Colombo'})+' SL time'; }
 
 async function render(background=false){
   const generation=++pageGeneration;
   const requested=(location.hash.slice(1)||'overview').split('?')[0];
   page=Object.hasOwn(pages,requested)?requested:'overview';
   const [title,description,action]=pages[page];
+  document.body.dataset.view=page;
   $('#crumb').textContent=title;$('#page-title').textContent=title;$('#page-description').textContent=description;
   document.title=`${title} · Astra Video`;
   $('#primary-action').hidden=!action||!isAdmin;$('#primary-action').textContent=action||'';
