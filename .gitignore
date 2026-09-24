@@ -66,3 +66,17 @@ Desktop.ini
 .DS_Store
 .idea/
 .vscode/
+
+# Local credentials and generated files.
+**/deepseek-key.txt
+**/data/
+**/logs/
+**/buttons/debug/
+*.log
+*.bak
+uploader/trainer - Copy*.py
+uploader/o.txt
+YT/caption-test.png
+**/private/config.php
+**/private/bootstrap.php
+**/private/install.lock
