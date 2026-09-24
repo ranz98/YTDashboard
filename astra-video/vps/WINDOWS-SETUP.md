@@ -1,13 +1,16 @@
 # Run Astra on your Windows VPS
 
 1. Extract the complete `ASTRA` folder to `C:\Astra`. Keep its subfolders together.
-2. Use your installed **Python 3.10 or newer (64-bit)**, **Google Chrome**,
-   **Node.js 22 or newer**, and **FFmpeg**. Add FFmpeg's `bin` folder to PATH.
+2. Use your existing **Python 3.10 or newer (64-bit)** and editor packages,
+   **Google Chrome**, and **FFmpeg**. Add FFmpeg's `bin` folder to PATH.
    Both `ffmpeg` and `ffprobe` must work in a new Command Prompt. Windows OCR
    needs an English language pack. If unavailable on Windows Server, install
    Tesseract with English data and add it to PATH. The installer checks this.
-   The installer detects Python automatically; Python 3.11 specifically and the
-   Python launcher are not required. It preserves an existing working environment.
+   Setup selects the installed Python with the most required packages. It does
+   not create an environment, install packages, or upgrade anything. Python 3.11
+   specifically and the Python launcher are not required. If your working scripts
+   use a custom Python path, set `ASTRA_PYTHON` to that executable before setup.
+   Keep your working yt-dlp version and its existing Deno or Node runtime, if used.
 3. Double-click `C:\Astra\astra-video\vps\install.cmd`.
    Enter the **dashboard admin login** and your DeepSeek API key when prompted.
 4. In the Chrome profile you will keep running, sign in to YouTube Studio and
@@ -27,6 +30,27 @@
 The extension uses the **not made for kids** audience selection, matching the
 current clips workflow. Do not enable uploads for a different audience without
 changing that selection. Uploads are Public at the configured post slot.
+
+## Lightweight update
+
+Stop the runner and wait for any active task to stop. Extract this package over
+the existing Astra folder. Run `install.cmd` to save the chosen Python path;
+existing dashboard configuration and pairing are preserved. In `chrome://extensions`,
+reload Astra VPS Agents and accept the new request-blocking permission if Chrome
+asks. Then run `start.cmd`. Do not delete the media folder or task journal.
+
+The editor runs at below-normal priority with one thread on a 1–2 CPU system,
+or at most two threads on larger systems. Filtering and render verification
+are limited too. This leaves more room for Windows, at the cost of longer edits;
+it does not change render resolution or encoding quality settings.
+
+The extension blocks image/media requests only in its channel-scan tab, pauses
+previews, and removes the rules after the scan. Studio upload traffic is untouched.
+UI checks run every 3 seconds, or 10 seconds during a long upload wait. Server
+heartbeats remain every 15 seconds. Only one pipeline stage runs at once.
+
+`requirements.txt` is a reference for fresh machines, not an automatic installation
+step. If checks find something missing, setup lists it and stops without changes.
 
 ## Start automatically without Task Scheduler
 

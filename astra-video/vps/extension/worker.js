@@ -21,6 +21,9 @@ function page(action, value) {
     !element.disabled && element.getAttribute('aria-disabled') !== 'true';
   const select = selector => [...document.querySelectorAll(selector)].find(visible);
   if (action === 'scan') {
+    for (const media of document.querySelectorAll('video,audio')) {
+      media.pause(); media.autoplay = false; media.preload = 'none';
+    }
     const videos = [], seen = new Set();
     for (const anchor of document.querySelectorAll('a[href*="/shorts/"]')) {
       const id = anchor.getAttribute('href').match(/\/shorts\/([\w-]{11})(?:[/?]|$)/)?.[1];
@@ -98,13 +101,13 @@ async function checkpoint(command) {
   if (!current || current.id !== command.id || current.cancel) throw new Error('Operation stopped.');
 }
 
-async function until(command, operation, milliseconds = 120000) {
+async function until(command, operation, milliseconds = 120000, interval = 3000) {
   const end = Date.now() + milliseconds;
   while (Date.now() < end) {
     await checkpoint(command);
     const result = await operation();
     if (result) return result;
-    await sleep(1500);
+    await sleep(interval);
   }
   throw new Error('YouTube did not reach the expected screen. Review the VPS log.');
 }
@@ -117,6 +120,9 @@ async function finish(active, result) {
       const tabs = await chrome.tabs.query({});
       if (tabs.some(tab => tab.id === active.tabId)) throw new Error('Unable to close agent tab.');
     }
+  }
+  if (active.action === 'fetch') {
+    await chrome.declarativeNetRequest.updateSessionRules({removeRuleIds: [1]});
   }
   const receipt = {id: active.id, ...result};
   await chrome.storage.local.set({receipt});
@@ -134,9 +140,17 @@ async function execute(command) {
     const url = command.action === 'fetch'
       ? 'https://www.youtube.com/' + encodeURIComponent(command.handle) + '/shorts'
       : 'https://studio.youtube.com/channel/' + command.destination;
-    const tab = await chrome.tabs.create({url, active: false});
+    const tab = await chrome.tabs.create({url: 'about:blank', active: false});
     active.tabId = tab.id;
     await chrome.storage.local.set({active});
+    if (command.action === 'fetch') {
+      // Install before navigation; Studio and Python downloads are outside this tab.
+      await chrome.declarativeNetRequest.updateSessionRules({removeRuleIds: [1], addRules: [{
+        id: 1, priority: 1, action: {type: 'block'},
+        condition: {tabIds: [tab.id], resourceTypes: ['image', 'media']}
+      }]});
+    }
+    await chrome.tabs.update(tab.id, {url});
     await chrome.debugger.attach({tabId: tab.id}, '1.3');
     await until(command, async () => (await chrome.tabs.get(tab.id)).status === 'complete');
     if (command.action === 'fetch') {
@@ -162,10 +176,10 @@ async function execute(command) {
     await until(command, () => inTab(tab.id, 'details', command.title), 300000);
     await until(command, async () => (await inTab(tab.id, 'next')) === 'visibility', 600000);
     await until(command, () => inTab(tab.id, 'public'));
-    await until(command, () => inTab(tab.id, 'publish-ready'), 5400000);
+    await until(command, () => inTab(tab.id, 'publish-ready'), 5400000, 10000);
     await checkpoint(command);
     await inTab(tab.id, 'publish');
-    const youtube_id = await until(command, () => inTab(tab.id, 'confirmation'), 300000);
+    const youtube_id = await until(command, () => inTab(tab.id, 'confirmation'), 300000, 5000);
     await finish(active, {ok: true, publication_confirmed: true, youtube_id});
   } catch (error) {
     await finish(active, {ok: false, error: String(error.message).slice(0, 400)});

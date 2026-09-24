@@ -1,10 +1,10 @@
 {
   "manifest_version": 3,
   "name": "Astra VPS Agents",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "minimum_chrome_version": "120",
   "description": "Runs Astra channel scans and verified YouTube Studio uploads on this VPS.",
-  "permissions": ["alarms", "storage", "tabs", "scripting", "debugger"],
+  "permissions": ["alarms", "storage", "tabs", "scripting", "debugger", "declarativeNetRequest"],
   "host_permissions": ["http://127.0.0.1/*", "https://www.youtube.com/*", "https://studio.youtube.com/*"],
   "background": {"service_worker": "worker.js"},
   "options_page": "options.html",

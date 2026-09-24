@@ -3,7 +3,7 @@ import importlib.util
 from pathlib import Path
 import tempfile
 import unittest
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 SOURCE = Path(__file__).resolve().parents[1] / "vps/runner.py"
 spec = importlib.util.spec_from_file_location("runner", SOURCE)
@@ -12,6 +12,18 @@ spec.loader.exec_module(runner)
 
 
 class RunnerTests(unittest.TestCase):
+    def test_editor_limits_leave_cpu_headroom(self):
+        for cpus, expected in [(1, '1'), (2, '1'), (4, '2'), (16, '2')]:
+            with patch.object(runner.os, 'cpu_count', return_value=cpus):
+                environment = runner.editor_environment({})
+                self.assertEqual(environment['ASTRA_FFMPEG_THREADS'], expected)
+                self.assertEqual(environment['OPENBLAS_NUM_THREADS'], expected)
+
+    def test_editor_cannot_request_unbounded_threads(self):
+        with patch.object(runner.os, 'cpu_count', return_value=4):
+            self.assertEqual(runner.editor_environment({'editor_threads': 0})['ASTRA_FFMPEG_THREADS'], '1')
+            self.assertEqual(runner.editor_environment({'editor_threads': 100})['ASTRA_FFMPEG_THREADS'], '2')
+
     def config(self):
         return {"url": "https://example.com/astra/", "token": "a" * 64,
                 "bridge_token": "b" * 64,

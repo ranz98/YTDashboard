@@ -78,6 +78,15 @@ def stop_process(process):
         process.wait(timeout=20)
 
 
+def editor_environment(config):
+    environment = os.environ.copy()
+    default = max(1, min(2, (os.cpu_count() or 2) - 1))
+    threads = max(1, min(default, int(config.get('editor_threads', default))))
+    for name in ('ASTRA_FFMPEG_THREADS', 'OMP_NUM_THREADS', 'OPENBLAS_NUM_THREADS', 'MKL_NUM_THREADS'):
+        environment[name] = str(threads)
+    return environment
+
+
 class Runner:
     def __init__(self, config, directory=BASE):
         self.config = config
@@ -112,8 +121,13 @@ class Runner:
         started = time.monotonic()
         try:
             with (work / "stage.log").open("ab", buffering=0) as log:
+                is_editor = task['agent'] == 'editor'
+                flags = subprocess.CREATE_NO_WINDOW
+                if is_editor:
+                    flags |= subprocess.BELOW_NORMAL_PRIORITY_CLASS
                 process = subprocess.Popen(command, cwd=BASE, stdout=log, stderr=log,
-                                           creationflags=subprocess.CREATE_NO_WINDOW)
+                                           env=editor_environment(self.config) if is_editor else None,
+                                           creationflags=flags)
                 last_beat = 0
                 while process.poll() is None:
                     if time.monotonic() - last_beat >= 15:

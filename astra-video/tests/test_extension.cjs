@@ -5,7 +5,7 @@ const path = require('node:path');
 const source = fs.readFileSync(path.join(__dirname, '../vps/extension/worker.js'), 'utf8');
 
 function environment(command) {
-  const state = {token: 'a'.repeat(64)}, results = [], actions = [], removed = [];
+  const state = {token: 'a'.repeat(64)}, results = [], actions = [], removed = [], rules = [];
   const listener = {addListener() {}};
   const context = vm.createContext({
     setTimeout, clearTimeout, AbortSignal, console,
@@ -22,7 +22,9 @@ function environment(command) {
       alarms: {create() {}, onAlarm: listener},
       runtime: {onStartup: listener, onInstalled: listener, onMessage: listener},
       action: {onClicked: listener},
+      declarativeNetRequest: {updateSessionRules: async value => { rules.push(value); actions.push('rules'); }},
       tabs: {create: async () => ({id: 10}), get: async () => ({status: 'complete'}),
+             update: async () => { actions.push('navigate'); },
              remove: async id => removed.push(id), query: async () => []},
       debugger: {attach: async () => {}, sendCommand: async (target, method) => {
         actions.push(method);
@@ -38,7 +40,7 @@ function environment(command) {
     }
   });
   vm.runInContext(source, context);
-  return {context, state, results, actions, removed};
+  return {context, state, results, actions, removed, rules};
 }
 
 (async () => {
@@ -48,6 +50,7 @@ function environment(command) {
   assert.equal(env.results[0].publication_confirmed, true);
   assert.ok(env.actions.indexOf('publish') < env.actions.indexOf('confirmation'));
   assert.deepEqual(env.removed, [10]);
+  assert.equal(env.rules.length, 0, 'Studio must not have blocking rules');
   await vm.runInContext('poll()', env.context);
   assert.equal(env.actions.filter(action => action === 'DOM.setFileInputFiles').length, 1);
 
@@ -66,5 +69,9 @@ function environment(command) {
   await vm.runInContext('poll()', env.context);
   assert.equal(env.results[0].videos.length, 5);
   assert.equal(env.actions.includes('DOM.setFileInputFiles'), false);
+  assert.deepEqual(Array.from(env.rules[0].addRules[0].condition.tabIds), [10]);
+  assert.deepEqual(Array.from(env.rules[0].addRules[0].condition.resourceTypes), ['image', 'media']);
+  assert.ok(env.actions.indexOf('rules') < env.actions.indexOf('navigate'));
+  assert.deepEqual(Array.from(env.rules.at(-1).removeRuleIds), [1]);
   console.log('Extension checks passed: upload order, receipt replay, restart, cancellation, five-video scan.');
 })().catch(error => { console.error(error); process.exit(1); });

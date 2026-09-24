@@ -1,15 +1,16 @@
 @echo off
 cd /d "%~dp0"
 if exist STOP del STOP
-if not exist .venv\Scripts\python.exe (
+if not exist data\python-path.txt (
   echo Run install.cmd first.
   pause
   exit /b 1
 )
-.venv\Scripts\python.exe doctor.py
+set /p "ASTRA_RUNTIME=" < "data\python-path.txt"
+"%ASTRA_RUNTIME%" doctor.py
 if errorlevel 1 (
   pause
   exit /b 1
 )
-.venv\Scripts\python.exe runner.py
+"%ASTRA_RUNTIME%" runner.py
 pause

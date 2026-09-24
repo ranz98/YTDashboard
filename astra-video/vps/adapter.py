@@ -3,6 +3,7 @@ import json
 import os
 from pathlib import Path
 import re
+import shutil
 import subprocess
 import sys
 import time
@@ -66,6 +67,7 @@ def fetch(task, request):
     if not isinstance(scan, list) or len(scan) > 5:
         raise ValueError('Invalid channel scan.')
     videos, seen = [], set()
+    runtime = None
     for index, video in enumerate(scan):
         video_id = video['id']
         folder = folder_for(task, video_id)
@@ -81,12 +83,15 @@ def fetch(task, request):
         media = folder / 'video.mp4'
         try:
             if not media.exists():
+                if runtime is None:
+                    help_text = subprocess.check_output([sys.executable, '-m', 'yt_dlp', '--help'], text=True)
+                    runtime = ['--js-runtimes', 'node'] if '--js-runtimes' in help_text and shutil.which('node') else []
                 run(sys.executable, '-m', 'yt_dlp', '--no-playlist', '--merge-output-format', 'mp4',
-                    '--js-runtimes', 'node',
+                    *runtime,
                     '-f', 'bv*[ext=mp4]+ba[ext=m4a]/b[ext=mp4]/best',
                     '-o', folder / 'video.%(ext)s', 'https://www.youtube.com/watch?v=' + video_id)
             verify(media)
-            run('ffmpeg', '-y', '-v', 'error', '-i', media, '-frames:v', '1', folder / 'frame.jpg')
+            run('ffmpeg', '-y', '-v', 'error', '-threads', '1', '-i', media, '-threads', '1', '-frames:v', '1', folder / 'frame.jpg')
             (folder / 'title.txt').write_text(item['title'], encoding='utf-8')
             videos.append(dict(item, downloaded=True))
         except (subprocess.CalledProcessError, RuntimeError, FileNotFoundError):
@@ -106,7 +111,7 @@ def edit(task, request):
     run(sys.executable, ROOT / 'scripts/cover_caption.py', source, '--rewrite', '--no-stage',
         '--filter', task['channel'].get('preset') or 'vivid', '-o', temporary)
     rendered = verify(temporary)
-    run('ffmpeg', '-v', 'error', '-xerror', '-i', temporary, '-f', 'null', '-')
+    run('ffmpeg', '-v', 'error', '-xerror', '-threads', os.environ.get('ASTRA_FFMPEG_THREADS', '1'), '-i', temporary, '-threads', '1', '-f', 'null', '-')
     if abs(duration - rendered) > max(1.0, duration * .02):
         raise RuntimeError('Rendered duration does not match the source.')
     title = (folder / 'title-new.txt').read_text(encoding='utf-8').strip()
