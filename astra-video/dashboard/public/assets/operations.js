@@ -1,18 +1,57 @@
 'use strict';
 let operationsState = null;
 let serverOffset = 0;
-const AGENT_INFO = {
-  fetch: {name:'Fetch agent', icon:'↓', color:'cyan', label:'DISCOVERY', detail:'Latest 5 videos · duplicates filtered'},
-  editor: {name:'Editor agent', icon:'✦', color:'violet', label:'PRODUCTION', detail:'Edit every new video · one at a time'},
-  uploader: {name:'Upload agent', icon:'↗', color:'coral', label:'PUBLISHING', detail:'3 daily posts · verified edits only'}
+// Inline SVG icons: the CSP blocks icon fonts and external images.
+const ICONS = {
+  overview:'<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>',
+  queue:'<path d="M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01"/>',
+  video:'<rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="m10 9.5 4.5 2.5-4.5 2.5z"/>',
+  alert:'<path d="M10.3 4 2.4 18a2 2 0 0 0 1.7 3h15.8a2 2 0 0 0 1.7-3L13.7 4a2 2 0 0 0-3.4 0z"/><path d="M12 9v4.5M12 17.5h.01"/>',
+  channels:'<rect x="2.5" y="7" width="19" height="13.5" rx="2.5"/><path d="m16.5 2.5-4.5 4.5-4.5-4.5"/>',
+  clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+  console:'<path d="m5 17 5-5-5-5M12.5 19H19"/>',
+  analytics:'<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',
+  settings:'<path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1.5 14h5M9.5 8h5M17.5 16h5"/>',
+  fetch:'<path d="M12 3v12M7 10l5 5 5-5M5 21h14"/>',
+  editor:'<circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M20 4 8.1 15.9M14.5 14.5 20 20M8.1 8.1 12 12"/>',
+  uploader:'<path d="M12 21V9M7 14l5-5 5 5M5 3h14"/>',
+  play:'<path d="M7 4.5v15l12-7.5z"/>',
+  pause:'<path d="M8 5v14M16 5v14"/>',
+  stop:'<rect x="6" y="6" width="12" height="12" rx="1.5"/>',
+  refresh:'<path d="M20.5 12a8.5 8.5 0 1 1-2.5-6L20.5 8.5"/><path d="M20.5 3.5v5h-5"/>',
+  retry:'<path d="M3.5 12a8.5 8.5 0 1 0 2.5-6L3.5 8.5"/><path d="M3.5 3.5v5h5"/>',
+  menu:'<path d="M3 6h18M3 12h18M3 18h18"/>',
+  x:'<path d="M18 6 6 18M6 6l12 12"/>',
+  check:'<path d="M20 6 9 17l-5-5"/>',
+  external:'<path d="M7 17 17 7M8 7h9v9"/>',
+  logout:'<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/>',
+  lock:'<rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>',
+  log:'<path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6M8 13h8M8 17h5"/>',
+  arrow:'<path d="M5 12h14M13 6l6 6-6 6"/>',
+  skip:'<path d="m5 5 9 7-9 7zM18 5v14"/>',
+  edit:'<path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/>',
+  download:'<path d="M12 3v12M7 10l5 5 5-5M4 21h16"/>',
+  plus:'<path d="M12 5v14M5 12h14"/>',
+  server:'<rect x="3" y="4" width="18" height="7" rx="2"/><rect x="3" y="13" width="18" height="7" rx="2"/><path d="M7 7.5h.01M7 16.5h.01"/>'
 };
+function icon(name){ return `<svg class="icon" viewBox="0 0 24 24" aria-hidden="true">${ICONS[name]||''}</svg>`; }
+document.querySelectorAll('[data-icon]').forEach(node=>{node.innerHTML=icon(node.dataset.icon);});
+
+const AGENT_INFO = {
+  fetch: {name:'Fetch', icon:'fetch', detail:'Latest 5 videos, skips duplicates', run:'Fetch now'},
+  editor: {name:'Editor', icon:'editor', detail:'Edits every new video', run:'Edit new videos'},
+  uploader: {name:'Upload', icon:'uploader', detail:'Up to 3 posts a day', run:'Upload now'}
+};
+const STATE_LABEL = {waiting:'Ready', offline:'Offline', paused:'Paused', running:'Running', stopping:'Stopping', stalled:'Stalled'};
 const operationPages = ['overview','jobs','schedules','library','errors'];
 const utcDate = value => new Date(value && (value.includes('T') ? value : value.replace(' ','T')+'Z'));
 const slClock = value => utcDate(value).toLocaleTimeString('en-GB',{timeZone:'Asia/Colombo',hour:'2-digit',minute:'2-digit',second:'2-digit'});
 const slDay = value => utcDate(value).toLocaleDateString('en-GB',{timeZone:'Asia/Colombo',day:'numeric',month:'short'});
 
+// Public visitors get no controls at all rather than a wall of disabled buttons.
 function opButton(action,text,extra='',kind='') {
-  return `<button class="button ${kind}" data-op="${action}" ${extra} ${isAdmin?'':'disabled title="Sign in to control automation"'}>${text}</button>`;
+  if(!isAdmin) return '';
+  return `<button class="button ${kind}" data-op="${action}" ${extra}>${text}</button>`;
 }
 function duration(until) {
   const seconds=Math.max(0,Math.ceil((utcDate(until).getTime()-Date.now()-serverOffset)/1000));
@@ -21,94 +60,130 @@ function duration(until) {
   const h=Math.floor(seconds/3600),m=Math.floor(seconds%3600/60),s=seconds%60;
   return `${String(h).padStart(2,'0')}<i>h</i> ${String(m).padStart(2,'0')}<i>m</i> ${String(s).padStart(2,'0')}<i>s</i>`;
 }
-function countdown(until,label) {
-  return `<div class="agent-countdown"><span>${label}</span><strong data-countdown="${esc(until||'')}">${until?duration(until):'Waiting for videos'}</strong></div>`;
-}
 function tickClocks(){
   document.querySelectorAll('[data-countdown]').forEach(node=>{if(node.dataset.countdown)node.innerHTML=duration(node.dataset.countdown);});
   document.querySelectorAll('[data-sl-clock]').forEach(node=>node.textContent=new Date(Date.now()+serverOffset).toLocaleTimeString('en-GB',{timeZone:'Asia/Colombo'}));
 }
 setInterval(tickClocks,1000);
 
-function agentCards(d){
-  const nextFetch=d.agents.find(a=>a.name==='fetch')?.next_run;
-  return `<div class="agent-grid">${d.agents.map(a=>{
-    const info=AGENT_INFO[a.name];
-    const isEditor=a.name==='editor';
-    let time=a.next_run,label='Next scheduled '+(a.name==='fetch'?'fetch':'post');
-    if(isEditor){ time=null;label=a.queued?'Ready in the edit queue':'Starts when a new download is ready'; }
-    let clock=countdown(time,label);
-    if(isEditor&&a.queued)clock=`<div class="agent-countdown"><span>${label}</span><strong>${a.queued} <i>videos</i></strong></div>`;
-    if(a.state==='running'||a.state==='stopping'||a.state==='stalled'){
-      const editing=isEditor&&a.state==='running';
-      const minutes=Math.max(0,Math.floor((Date.now()+serverOffset-utcDate(d.active.started_at))/60000));
-      clock=`<div class="agent-countdown"><span>Current task #${d.active.id} · ${minutes} min elapsed</span><strong>${a.state==='running'?(editing?'Editing…':a.progress+'%'):a.state==='stopping'?'Stopping…':'Needs attention'}</strong>${editing?'<small>Rewrite / render · percentage unavailable</small>':`<progress value="${a.progress}" max="100"></progress>`}<span>Runner heartbeat ${Number(d.active.heartbeat_age)}s ago</span></div>`;
-    }
-    return `<article class="agent-card ${info.color} ${a.state==='running'?'is-running':''}"><div class="agent-card-top"><div class="agent-symbol"><span>${info.icon}</span></div><span class="agent-state ${esc(a.state)}"><b></b>${esc(a.state)}</span></div><p class="agent-label">${info.label}</p><h2>${info.name}</h2><p class="agent-description">${info.detail}</p>${clock}<div class="agent-schedule">${isEditor?'All downloaded videos → edit queue':a.display_slots.map(t=>`<span>${t}</span>`).join('')+'<small>SL time</small>'}</div><div class="agent-meta"><span>In queue <b>${a.queued}</b></span><span>Last finished <b>${a.last_finished?date(a.last_finished):'Not run yet'}</b></span></div><p class="agent-execution-note">${a.state==='offline'?'Schedule saved · worker not connected':a.state==='paused'?'Paused · countdown shows the planned slot':a.state==='stalled'?'Heartbeat lost · execution slot stays locked':a.name==='uploader'&&!d.ready?'No eligible video yet · next slot is planned':a.state==='running'?'Working in the shared execution slot':(d.active?'Waiting for the active task to finish':'Ready · waiting for eligible work')}</p><div class="agent-controls">${opButton('agent-toggle',Number(a.enabled)?'Ⅱ Pause':'▶ Enable',`data-agent="${a.name}" data-next="${Number(a.enabled)?'stop':'start'}"`)}${opButton('run',isEditor?'Edit new videos':a.name==='fetch'?'Fetch now':'Upload now',`data-agent="${a.name}"`)}</div></article>`;
-  }).join('')}</div>`;
+function pipelineButton(d){
+  if(!isAdmin) return `<a href="login.php" class="button">${icon('lock')}Sign in to control</a>`;
+  return d.paused?opButton('pipeline-start',icon('play')+'Start pipeline','','primary'):opButton('pipeline-stop',icon('stop')+'Stop pipeline','','danger');
+}
+function controlBar(d){
+  const tone=d.paused||!d.online?'amber':'';
+  return `<div class="controlbar"><div class="controlbar-status"><span class="status-dot ${tone}"></span><strong>${d.paused?'Pipeline paused':d.online?'Pipeline on':'Pipeline on · waiting for VPS'}</strong><span class="controlbar-note">One task runs at a time</span></div>${pipelineButton(d)}</div>`;
 }
 
-function controlBar(d){
-  return `<div class="mission-toolbar"><div class="mission-status"><span class="status-dot ${d.paused||!d.online?'amber':''}"></span><strong>${d.paused?'Pipeline paused':d.online?'Pipeline enabled':'Enabled · waiting for worker'}</strong><span class="safe-chip">⌁ One shared execution slot</span></div><div class="mission-actions">${opButton('pipeline-start','▶ Start all','','primary')}${opButton('pipeline-stop','■ Stop all','','danger')}${isAdmin?'':'<a href="login.php" class="button">⌑ Sign in to control</a>'}</div></div>`;
+function agentNow(a,d){
+  const isEditor=a.name==='editor';
+  if(['running','stopping','stalled'].includes(a.state)&&d.active){
+    const editing=isEditor&&a.state==='running';
+    const minutes=Math.max(0,Math.floor((Date.now()+serverOffset-utcDate(d.active.started_at))/60000));
+    const main=a.state==='running'?(editing?'Editing…':a.progress+'%'):a.state==='stopping'?'Stopping…':'Needs attention';
+    return `<div class="now"><strong>${main}</strong><small>Task #${d.active.id} · ${minutes} min elapsed</small><small>Heartbeat ${Number(d.active.heartbeat_age)}s ago</small>${editing?'':`<progress class="bar" value="${a.progress}" max="100"></progress>`}</div>`;
+  }
+  if(isEditor)return a.queued?`<div class="now"><strong>${a.queued} <i>queued</i></strong><small>Ready to edit</small></div>`:'<span class="muted-text">After the next download</span>';
+  if(!a.next_run)return '<span class="muted-text">Not scheduled</span>';
+  return `<div class="now"><strong class="countdown" data-countdown="${esc(a.next_run)}">${duration(a.next_run)}</strong><small>${date(a.next_run)}</small></div>`;
+}
+
+function agentsTable(d){
+  return `<div class="table-wrap"><table class="data agents-table"><thead><tr><th>Agent</th><th>Status</th><th>Next run</th><th>Daily times</th><th class="col-last">Last finished</th>${isAdmin?'<th><span class="sr-only">Actions</span></th>':''}</tr></thead><tbody>${d.agents.map(a=>{
+    const info=AGENT_INFO[a.name],isEditor=a.name==='editor';
+    const note=a.state==='offline'?'Worker not connected':a.state==='paused'?'Next slot shown as planned':a.state==='stalled'?'Heartbeat lost · slot stays locked':a.state==='stopping'?'Finishing current work':a.state==='waiting'&&d.active?'Waits for the active task':a.name==='uploader'&&a.state==='waiting'&&!d.ready?'No edited video ready yet':'';
+    const toggle=opButton('agent-toggle',Number(a.enabled)?icon('pause')+'Pause':icon('play')+'Enable',`data-agent="${a.name}" data-next="${Number(a.enabled)?'stop':'start'}"`,'small');
+    return `<tr class="${a.state==='running'?'is-running':''}"><td class="cell-main" data-label="Agent"><div class="agent-cell"><span class="icon-box">${icon(info.icon)}</span><div><strong>${info.name}</strong><small>${info.detail}</small></div></div></td><td data-label="Status"><div><span class="state state-${esc(a.state)}"><b></b>${STATE_LABEL[a.state]||esc(a.state)}</span>${note?`<small class="cell-note">${note}</small>`:''}</div></td><td data-label="Next run">${agentNow(a,d)}</td><td data-label="Daily times">${isEditor?'<span class="muted-text">After each download</span>':`<div class="slots">${a.display_slots.map(t=>`<span class="slot">${esc(t)}</span>`).join('')}</div>`}</td><td data-label="Last finished" class="nowrap col-last">${a.last_finished?date(a.last_finished):'<span class="muted-text">Not run yet</span>'}</td>${isAdmin?`<td class="actions-cell"><div class="row-actions">${toggle}${opButton('run',info.run,`data-agent="${a.name}"`,'small')}</div></td>`:''}</tr>`;
+  }).join('')}</tbody></table></div>`;
 }
 
 function workspaceStatus(d){
   const active=d.agents.find(a=>['running','stopping','stalled'].includes(a.state));
-  const title=active?.state==='stalled'?'Worker needs attention':active?.state==='stopping'?'Finishing the stop request':d.paused?'Automation is paused':!d.online?'Connect your VPS to begin':active?`${AGENT_INFO[active.name].name} is working`:d.blocked?'Some videos need your attention':'Ready for the next run';
-  const detail=active?`Task #${d.active.id} · ${d.active.title||'Open the queue for stage details.'}`:d.paused?'Resume automation when you are ready.':!d.online?'Keep start.cmd running and pair the Chrome extension on your VPS.':d.blocked?'Review failed or skipped work in Errors. Eligible videos can continue.':'New videos move from fetch to edit, then wait for a publishing slot.';
-  $('.worker-card').innerHTML=`<span class="status-dot ${!d.online?'amber':''}"></span><strong>${d.online?'VPS connected':'VPS offline'}</strong><small>Last checked ${slClock(d.server_time)} SL</small>`;
+  const title=active?.state==='stalled'?'Worker needs attention':active?.state==='stopping'?'Finishing the stop request':d.paused?'Automation is paused':!d.online?'Connect your VPS to begin':active?`${AGENT_INFO[active.name].name} agent is working`:d.blocked?'Some videos need your attention':'Ready for the next run';
+  const detail=active?`Task #${d.active.id} · ${d.active.title||'Open the queue for stage details.'}`:d.paused?'Start the pipeline when you are ready.':!d.online?'Keep start.cmd running and pair the Chrome extension on your VPS.':d.blocked?'Review failed or skipped work in Errors. Other videos can continue.':'New videos go from fetch to edit, then wait for a posting slot.';
+  $('.worker-card').innerHTML=`<span class="status-dot ${!d.online?'amber':''}"></span><strong>${d.online?'VPS connected':'VPS offline'}</strong><small>Checked ${slClock(d.server_time)} SL</small>`;
   $('#notice').hidden=true;
   return {title,detail,active};
 }
 
-function overviewHero(d,clock){
-  const status=workspaceStatus(d),post=d.agents.find(a=>a.name==='uploader');
-  return `<section class="overview-hero"><div class="hero-copy"><span class="mission-tag">YOUR AUTOMATION, AT A GLANCE</span><h2>${esc(status.title)}</h2><p>${esc(status.detail)}</p><div class="hero-links"><a class="button primary" href="${status.active?'#jobs':d.blocked?'#errors':!d.online?'#settings':'#jobs'}">${status.active?'View active task':d.blocked?'Review errors':!d.online?'Connection setup':'View queue'} →</a><a class="text-link" href="#console">Live console ↗</a></div></div><div class="hero-next"><span class="mission-tag">NEXT PLANNED POST</span><strong data-countdown="${esc(post?.next_run||'')}">${post?.next_run?duration(post.next_run):'Not scheduled'}</strong><p>${date(post?.next_run)} · Sri Lanka</p><small>${d.paused?'Automation paused':!d.online?'Waiting for VPS':!Number(post?.enabled)?'Upload agent paused':d.ready?`${d.ready} video(s) ready`:'Waiting for a finished edit'} · slot is not a guarantee</small></div></section><div class="section-heading"><div><h2>Pipeline overview</h2><p>01 Fetch <span>→</span> 02 Edit <span>→</span> 03 Publish · one task at a time</p></div>${clock}</div>`;
+function statusCard(d){
+  const status=workspaceStatus(d);
+  const tone=status.active?.state==='stalled'?'red':status.active?'blue':d.paused||!d.online||d.blocked?'amber':'green';
+  const [href,label]=status.active?['#jobs','View active task']:d.blocked?['#errors','Review errors']:!d.online?['#settings','Connection setup']:['#jobs','View queue'];
+  const kicker=d.paused?'Pipeline paused':d.online?'Pipeline on · VPS connected':'Pipeline on · VPS offline';
+  return `<section class="status-card tone-${tone}"><div class="status-main"><span class="status-orb"><b></b></span><div><p class="status-kicker">${kicker}</p><h2>${esc(status.title)}</h2><p class="status-detail">${esc(status.detail)}</p></div></div><div class="status-actions"><a class="button" href="${href}">${label}${icon('arrow')}</a>${pipelineButton(d)}</div></section>`;
 }
 
-function taskCards(tasks){
-  if(!tasks.length)return empty('Your queue is clear','Each fetched video will move through download, edit and upload. Skipped or failed work remains visible with its reason.','','≡');
-  return `<div class="queue-list">${tasks.map(t=>{
+function kpis(d){
+  const post=d.agents.find(a=>a.name==='uploader');
+  const queued=d.tasks.filter(t=>t.state==='queued').length;
+  const postNote=d.paused?'Automation paused':!d.online?'Waiting for VPS':!Number(post?.enabled)?'Upload agent paused':d.ready?`${d.ready} video(s) ready`:'Waiting for a finished edit';
+  return `<div class="kpi-grid"><div class="kpi"><span class="kpi-label">Next post</span><strong class="kpi-value countdown" data-countdown="${esc(post?.next_run||'')}">${post?.next_run?duration(post.next_run):'Not scheduled'}</strong><small>${post?.next_run?date(post.next_run)+' · ':''}${postNote}</small></div><a class="kpi" href="#jobs"><span class="kpi-label">Queued tasks</span><strong class="kpi-value">${queued}</strong><small>Waiting to run</small></a><a class="kpi" href="#library"><span class="kpi-label">Ready to post</span><strong class="kpi-value">${d.ready}</strong><small>Edited and titled</small></a><a class="kpi ${d.blocked?'is-alert':''}" href="#errors"><span class="kpi-label">Needs attention</span><strong class="kpi-value">${d.blocked}</strong><small>${d.blocked?'Review in Errors':'All clear'}</small></a></div>`;
+}
+
+function taskCards(tasks,compact=false){
+  if(!tasks.length)return empty('The queue is clear','Fetched videos move through edit and upload here. Skipped or failed work stays visible with its reason.','',icon('queue'));
+  return `<div class="table-wrap"><table class="data"><thead><tr><th>Video / task</th><th>Agent</th><th>Status</th><th>Time</th><th><span class="sr-only">Actions</span></th></tr></thead><tbody>${tasks.map(t=>{
     const info=AGENT_INFO[t.agent];
     const canRetry=['failed','skipped','cancelled'].includes(t.state)&&t.agent!=='uploader';
-    return `<article class="queue-row"><span class="queue-symbol ${info.color}">${info.icon}</span><div class="queue-main"><div class="queue-title"><strong>${esc(t.title||t.channel_name)}</strong>${badge(t.state)}</div><p>#${t.id} · ${esc(info.name)} · ${esc(t.channel_name)}</p>${t.reason?`<div class="queue-reason">⚠ ${esc(t.reason)}</div>`:''}<div class="queue-times"><span>Scheduled ${date(t.scheduled_at)}</span>${t.started_at?`<span>Started ${date(t.started_at)}</span>`:''}${t.finished_at?`<span>${t.agent==='uploader'&&t.state==='completed'?'Posted':'Finished'} ${date(t.finished_at)}</span>`:''}</div></div><div class="queue-actions">${t.job_id?`<button class="button small" data-command="job-log" data-id="${t.job_id}">Logs</button>`:''}${t.state==='queued'?opButton('skip','Skip',`data-id="${t.id}"`,'small'):''}${canRetry?opButton('retry','Retry',`data-id="${t.id}"`,'small'):''}</div></article>`;
-  }).join('')}</div>`;
+    const done=t.agent==='uploader'&&t.state==='completed'?'Posted':'Finished';
+    const when=t.finished_at?`${done} ${date(t.finished_at)}`:t.started_at?`Started ${date(t.started_at)}`:`Scheduled ${date(t.scheduled_at)}`;
+    const planned=!compact&&(t.finished_at||t.started_at)&&t.scheduled_at?`<small class="cell-note">Scheduled ${date(t.scheduled_at)}</small>`:'';
+    const actions=`${t.job_id?`<button class="button small ghost" data-command="job-log" data-id="${t.job_id}">${icon('log')}Logs</button>`:''}${t.state==='queued'?opButton('skip',icon('skip')+'Skip',`data-id="${t.id}"`,'small'):''}${canRetry?opButton('retry',icon('retry')+'Retry',`data-id="${t.id}"`,'small'):''}`;
+    return `<tr><td class="cell-main" data-label="Video"><div class="cell-title">${esc(t.title||`${info.name} · ${t.channel_name}`)}</div><div class="cell-sub">#${t.id} · ${esc(t.channel_name)}</div>${t.reason?`<div class="reason">${icon('alert')}<span>${esc(t.reason)}</span></div>`:''}</td><td data-label="Agent"><span class="agent-tag">${icon(info.icon)}${info.name}</span></td><td data-label="Status">${badge(t.state)}</td><td data-label="Time" class="time-cell"><div>${when}${planned}</div></td><td class="actions-cell">${actions?`<div class="row-actions">${actions}</div>`:''}</td></tr>`;
+  }).join('')}</tbody></table></div>`;
 }
 
 function videoCards(videos){
-  if(!videos.length)return empty('Waiting for the first five-video check','New videos will show their title, stage checkmarks and actual posting time. Duplicate video IDs will not create another job.','','▶');
-  const check=(ok,label)=>`<span class="video-check ${ok?'done':'pending'}"><b>${ok?'✓':'○'}</b>${label}</span>`;
-  return `<div class="video-check-list">${videos.map(v=>`<article class="video-check-card"><div class="video-top"><span class="video-icon">▶</span><div><h3>${esc(v.title||v.original_title||v.source_video_id)}</h3><p>${esc(v.channel_name)} · ${esc(v.source_video_id)}</p></div>${badge(v.status)}</div><div class="video-checks">${check(v.downloaded_at,'Downloaded')}${check(Number(v.title_ready),'Title ready')}${check(v.edited_at,'Editor complete')}${check(v.published_at,'Uploader complete')}</div>${v.blocked_reason?`<p class="queue-reason">⛔ Cannot post: ${esc(v.blocked_reason)}</p>`:''}<div class="video-footer"><span>${v.published_at?'Posted '+date(v.published_at):v.edited_at?'Edited '+date(v.edited_at)+' · awaiting a post slot':'Not posted'}</span>${v.published_url&&/^https:\/\/www\.youtube\.com\//.test(v.published_url)?`<a class="text-link" href="${esc(v.published_url)}" target="_blank" rel="noopener">View post ↗</a>`:''}</div></article>`).join('')}</div>`;
+  if(!videos.length)return empty('No videos yet','Each fetched video appears here with a check for every finished stage.','',icon('video'));
+  const step=(ok,label)=>`<td class="step-cell" data-label="${label}"><span class="step ${ok?'done':''}" title="${label}: ${ok?'done':'pending'}">${ok?icon('check'):''}</span></td>`;
+  return `<div class="table-wrap"><table class="data videos-table"><thead><tr><th>Video</th><th class="center">Downloaded</th><th class="center">Title</th><th class="center">Edited</th><th class="center">Posted</th><th>Status</th><th>Result</th></tr></thead><tbody>${videos.map(v=>{
+    const link=v.published_url&&/^https:\/\/www\.youtube\.com\//.test(v.published_url)?` <a class="text-link" href="${esc(v.published_url)}" target="_blank" rel="noopener">View${icon('external')}</a>`:'';
+    const result=v.published_at?'Posted '+date(v.published_at):v.edited_at?'Edited '+date(v.edited_at)+(v.blocked_reason?'':' · waiting for a slot'):'<span class="muted-text">Not posted</span>';
+    return `<tr><td class="cell-main" data-label="Video"><div class="cell-title">${esc(v.title||v.original_title||v.source_video_id)}</div><div class="cell-sub">${esc(v.channel_name)} · ${esc(v.source_video_id)}</div>${v.blocked_reason?`<div class="reason red">${icon('alert')}<span>Cannot post: ${esc(v.blocked_reason)}</span></div>`:''}</td>${step(v.downloaded_at,'Downloaded')}${step(Number(v.title_ready),'Title')}${step(v.edited_at,'Edited')}${step(v.published_at,'Posted')}<td data-label="Status">${badge(v.status)}</td><td data-label="Result" class="result-cell"><div>${result}${link}</div></td></tr>`;
+  }).join('')}</tbody></table></div>`;
 }
 
 function scanCards(rows){
-  if(!rows.length)return empty('No channel scan yet','The next fetch will inspect five recent videos and label each one as downloaded, duplicate or skipped.','','◎');
-  return `<div class="queue-list">${rows.map(v=>`<article class="queue-row"><span class="queue-symbol cyan">${v.result==='duplicate'?'↺':v.result==='downloaded'?'✓':'!'}</span><div class="queue-main"><div class="queue-title"><strong>${esc(v.title)}</strong>${badge(v.result)}</div><p>${esc(v.channel_name)} · ${esc(v.source_video_id)}</p><div class="queue-times">Checked ${date(v.checked_at)}</div>${v.reason?`<p class="queue-reason">${esc(v.reason)}</p>`:''}</div></article>`).join('')}</div>`;
+  if(!rows.length)return empty('No channel check yet','The next fetch looks at the latest five videos and marks each as downloaded, duplicate or skipped.','',icon('channels'));
+  return `<div class="table-wrap"><table class="data"><thead><tr><th>Video</th><th>Result</th><th>Checked</th><th>Note</th></tr></thead><tbody>${rows.map(v=>`<tr><td class="cell-main" data-label="Video"><div class="cell-title">${esc(v.title)}</div><div class="cell-sub">${esc(v.channel_name)} · ${esc(v.source_video_id)}</div></td><td data-label="Result">${badge(v.result)}</td><td data-label="Checked" class="nowrap">${date(v.checked_at)}</td><td data-label="Note">${v.reason?esc(v.reason):'<span class="muted-text">—</span>'}</td></tr>`).join('')}</tbody></table></div>`;
+}
+
+function eventsTable(events){
+  if(!events.length)return empty('No warnings or errors','Worker failures and skipped post slots will appear here.','',icon('check'));
+  return `<div class="table-wrap"><table class="data"><thead><tr><th>Time</th><th>Level</th><th>Source</th><th>Message</th><th>Video</th></tr></thead><tbody>${events.map(e=>`<tr><td data-label="Time" class="nowrap">${date(e.created_at)}</td><td data-label="Level">${badge(e.level)}</td><td data-label="Source"><span class="agent-tag plain">${esc(e.source)}</span></td><td class="cell-main message-cell" data-label="Message">${esc(e.message)}</td><td data-label="Video">${e.job_id?'#'+esc(e.job_id):'<span class="muted-text">—</span>'}</td></tr>`).join('')}</tbody></table></div>`;
 }
 
 async function renderOperations(view){
   const d=await api('operations');operationsState=d;serverOffset=Date.parse(d.server_time)-Date.now();
   workspaceStatus(d);
-  $('#nav-queue').textContent=d.tasks.filter(t=>t.state==='queued').length;
-  $('#nav-errors').textContent=d.blocked;
-  const clock=`<div class="local-time"><span>◷ SRI LANKA</span><strong data-sl-clock></strong><small>Asia/Colombo · UTC+05:30</small></div>`;
-  const note=`<div class="operations-note"><span>◈</span><p><strong>Latest 5 → deduplicate → edit all → 3 daily posts.</strong> ${d.active?'One task owns the execution slot. Other agents wait.':'One agent works at a time; failed and skipped videos cannot post.'}</p></div>`;
+  const queued=d.tasks.filter(t=>t.state==='queued').length;
+  $('#nav-queue').textContent=queued;$('#nav-queue').hidden=!queued;
+  $('#nav-errors').textContent=d.blocked;$('#nav-errors').hidden=!d.blocked;
   if(view==='overview'){
     const v=await api('video_checks');
     const priority=t=>t.state==='running'?0:t.state==='queued'?1:2;
     const recent=[...d.tasks].sort((a,b)=>priority(a)-priority(b)||Number(b.id)-Number(a.id));
-    return `${overviewHero(d,clock)}${controlBar(d)}${agentCards(d)}<div class="ops-stats"><a href="#jobs"><b>${d.tasks.filter(t=>t.state==='queued').length}</b><span>Queued tasks ↗</span></a><a href="#library"><b>${d.ready}</b><span>Ready to post ↗</span></a><a href="#errors" class="${d.blocked?'has-errors':''}"><b>${d.blocked}</b><span>Need attention ↗</span></a><a href="#library"><b>${d.published.length}</b><span>Recent confirmed posts ↗</span></a></div><div class="ops-bottom-grid">${panel('Queue activity','Active and waiting tasks first',taskCards(recent.slice(0,4)),'<a class="text-link" href="#jobs">Full queue →</a>')}${panel('Video progress','Checkmarks confirm each completed stage',videoCards(v.items.slice(0,4)),'<a class="text-link" href="#library">All videos →</a>')}</div>`;
+    return `${statusCard(d)}${kpis(d)}${panel('Agents','One task runs at a time · Sri Lanka time',agentsTable(d))}${panel('Queue','Running and waiting tasks first',taskCards(recent.slice(0,5),true),`<a class="text-link" href="#jobs">View all${icon('arrow')}</a>`)}${panel('Recent videos','A check means the stage is complete',videoCards(v.items.slice(0,5)),`<a class="text-link" href="#library">View all${icon('arrow')}</a>`)}`;
   }
-  if(view==='jobs')return `${controlBar(d)}${note}<div class="queue-filters"><button data-queue-filter="all" class="filter-chip selected">All ${d.tasks.length}</button>${['queued','running','completed','skipped','failed','blocked','needs_attention'].map(s=>`<button data-queue-filter="${s}" class="filter-chip">${s.replaceAll('_',' ')} <b>${d.tasks.filter(t=>t.state===s).length}</b></button>`).join('')}</div>${panel('Execution queue','Oldest ready task first. Uploads require a completed edit and title.',`<div id="task-list">${taskCards(d.tasks)}</div>`)}<div class="operations-note"><span>⛔</span><p>If a worker disconnects mid-task, its slot stays locked. A stale process cannot be replaced by a second overlapping process.</p></div>`;
-  if(view==='library'){const v=await api('video_checks');return panel('Latest five observations','Downloaded, duplicate and skipped source videos',scanCards(d.latest_scan||[]))+panel('Video checklist',`${v.items.length} tracked videos · every date is Sri Lanka time`,videoCards(v.items));}
+  if(view==='jobs'){
+    const states=['queued','running','completed','skipped','failed','blocked','needs_attention'].filter(s=>d.tasks.some(t=>t.state===s));
+    return `${controlBar(d)}<div class="queue-filters"><button data-queue-filter="all" class="filter-chip selected">All <b>${d.tasks.length}</b></button>${states.map(s=>`<button data-queue-filter="${s}" class="filter-chip">${s.replaceAll('_',' ')} <b>${d.tasks.filter(t=>t.state===s).length}</b></button>`).join('')}</div>${panel('All tasks','Oldest ready task runs first. Uploads need a finished edit and title.',`<div id="task-list">${taskCards(d.tasks)}</div>`)}<p class="footnote">If a worker disconnects mid-task, its slot stays locked so two tasks never overlap.</p>`;
+  }
+  if(view==='library'){const v=await api('video_checks');return panel('Videos',`${v.items.length} tracked · Sri Lanka time`,videoCards(v.items))+panel('Latest channel check','The last five videos the fetch agent looked at',scanCards(d.latest_scan||[]));}
   if(view==='schedules'){
-    const schedule=d.agents.filter(a=>a.name!=='editor');
-    return `${controlBar(d)}<div class="schedule-intro"><div><span class="mission-tag">3 FETCHES / 3 POSTS PER DAY</span><h2>Built around US viewing hours.</h2><p>US Eastern noon, evening and late evening are a starting hypothesis. Use your channel’s audience report to tune the schedule.</p></div>${clock}</div><div class="schedule-grid">${schedule.map(a=>`<section class="panel schedule-panel ${AGENT_INFO[a.name].color}"><div class="panel-header"><h2>${a.name==='fetch'?'↓ Fetch windows':'↗ Posting windows'}</h2>${badge(Number(a.enabled)?'enabled':'paused')}</div><div class="schedule-slots">${a.display_slots.map((slot,i)=>`<div><span>WINDOW 0${i+1}</span><strong>${slot}</strong><small>Sri Lanka time</small></div>`).join('')}</div><p class="schedule-explain">${a.name==='fetch'?'Inspect the latest five Shorts and download unseen videos.':'Post the oldest eligible edit. If none is ready, record a skipped slot.'}</p><p class="schedule-zone">${a.schedule_timezone==='America/New_York'?'US daylight saving changes are applied automatically.':'These are fixed Sri Lanka clock times.'}</p><div class="schedule-bottom"><span>Next ${date(a.next_run)}</span>${opButton('schedule','Edit times',`data-agent="${a.name}"`,'small')}</div></section>`).join('')}</div>${panel('✦ Editor schedule','Event-driven: after download, before publication','<div class="editor-policy"><span class="policy-orbit">✦</span><div><h3>Edit everything new</h3><p>Every downloaded video gets its own edit task. The editor drains the queue one at a time. The next edit starts when its download is complete and the shared execution slot is free.</p></div>'+opButton('run','Queue all edits','data-agent="editor"')+'</div>')}<div class="operations-note"><span>i</span><p>Fetches are 45 minutes before their matching post windows by default. That is preparation time, not a guarantee: an unfinished edit waits for a later post slot.</p></div>`;
+    const rows=d.agents.map(a=>{
+      const info=AGENT_INFO[a.name],isEditor=a.name==='editor';
+      const agent=`<td class="cell-main" data-label="Agent"><div class="agent-cell"><span class="icon-box">${icon(info.icon)}</span><div><strong>${info.name}</strong><small>${info.detail}</small></div></div></td>`;
+      if(isEditor)return `<tr>${agent}<td data-label="Daily times"><span class="muted-text">After each download, one at a time</span></td><td data-label="Next run">${a.queued?a.queued+' queued':'<span class="muted-text">—</span>'}</td><td data-label="Based on">Downloads</td><td data-label="Status">${badge(Number(a.enabled)?'enabled':'paused')}</td><td class="actions-cell"><div class="row-actions">${opButton('run','Queue all edits','data-agent="editor"','small')}</div></td></tr>`;
+      return `<tr>${agent}<td data-label="Daily times"><div class="slots">${a.display_slots.map(t=>`<span class="slot">${esc(t)}</span>`).join('')}</div></td><td data-label="Next run" class="nowrap">${date(a.next_run)}</td><td data-label="Based on">${a.schedule_timezone==='America/New_York'?'US Eastern · auto daylight saving':'Fixed Sri Lanka times'}</td><td data-label="Status">${badge(Number(a.enabled)?'enabled':'paused')}</td><td class="actions-cell"><div class="row-actions">${opButton('schedule',icon('edit')+'Edit times',`data-agent="${a.name}"`,'small')}</div></td></tr>`;
+    }).join('');
+    return `${controlBar(d)}${panel('Daily schedule','3 fetches and 3 posts a day · shown in Sri Lanka time',`<div class="table-wrap"><table class="data"><thead><tr><th>Agent</th><th>Daily times</th><th>Next run</th><th>Based on</th><th>Status</th><th><span class="sr-only">Actions</span></th></tr></thead><tbody>${rows}</tbody></table></div>`)}<p class="footnote">Fetches run 45 minutes before each post so edits have time to finish. If no edited video is ready, that post slot is skipped.</p>`;
   }
   if(view==='errors'){
     const e=await api('errors');
     const runningStale=e.tasks.filter(t=>t.state==='running').length;
-    return `<div class="error-summary"><div class="error-orb">!</div><div><h2>${e.tasks.length?e.tasks.length+' tasks need a look':'No task errors recorded'}</h2><p>${runningStale?'A worker heartbeat was lost. The execution slot is still locked.':'Skipped, failed and uncertain uploads are held here until reviewed.'}</p></div>${badge(e.tasks.length?'needs_attention':'success')}</div>${panel('Blocked work','Skipped videos cannot be posted. Uncertain uploads require reconciliation.',taskCards(e.tasks.map(t=>({...t,scheduled_at:t.started_at,channel_name:t.channel_name}))))}${panel('Warnings & errors','Latest 200 events · Sri Lanka time',e.events.length?'<div class="error-events">'+e.events.map(e=>`<article class="error-event"><span class="error-event-icon">${e.level==='error'?'⛔':'⚠'}</span><div><strong>${esc(e.message)}</strong><p>${date(e.created_at)} · ${esc(e.source)}${e.job_id?' · video #'+e.job_id:''}</p></div>${badge(e.level)}</article>`).join('')+'</div>':empty('No warnings or errors','Real worker failures and skipped post slots will appear here.','','✓'))}`;
+    return `<div class="summary-banner tone-${e.tasks.length?'amber':'green'}"><span class="icon-box">${icon(e.tasks.length?'alert':'check')}</span><div><h2>${e.tasks.length?e.tasks.length+(e.tasks.length===1?' task needs':' tasks need')+' a look':'No task errors'}</h2><p>${runningStale?'A worker heartbeat was lost. The execution slot is still locked.':'Skipped, failed and uncertain uploads stay here until reviewed.'}</p></div></div>${panel('Blocked work','Skipped videos cannot post. Uncertain uploads need checking on YouTube first.',taskCards(e.tasks.map(t=>({...t,scheduled_at:t.started_at,channel_name:t.channel_name}))))}${panel('Warnings & errors','Latest 200 events · Sri Lanka time',eventsTable(e.events))}`;
   }
 }
 
@@ -119,8 +194,8 @@ async function operationDialog(type,agent,id){
   const config=operationsState.agents.find(a=>a.name===agent);
   $('#modal-error').hidden=true;
   $('#modal-title').textContent=type==='schedule'?'Daily '+(agent==='fetch'?'fetch':'post')+' times':'Skip this task';
-  $('#modal-fields').innerHTML=type==='schedule'?`<p class="form-hint">Enter exactly three daily times in Sri Lanka time. Saving changes uses fixed Sri Lanka times rather than automatic US daylight saving adjustments.</p>${[0,1,2].map(i=>`<label>Window ${i+1}<input name="slot${i}" type="time" required value="${config.display_slots[i]||''}"></label>`).join('')}`:'<label>Why should this task be skipped?<input name="reason" required maxlength="1000" placeholder="Explain why this video must not be posted"></label><p class="form-hint">The video is held out of the upload queue. Its reason remains visible.</p>';
-  $('#modal-submit').textContent=type==='schedule'?'Save schedule':'Skip task';$('#modal').showModal();
+  $('#modal-fields').innerHTML=type==='schedule'?`<p class="form-hint">Enter three daily times in Sri Lanka time. Saved times stay fixed and no longer follow US daylight saving.</p><div class="form-row">${[0,1,2].map(i=>`<label>Time ${i+1}<input name="slot${i}" type="time" required value="${config.display_slots[i]||''}"></label>`).join('')}</div>`:'<label>Why skip this task?<input name="reason" required maxlength="1000" placeholder="e.g. Wrong video, do not post"></label><p class="form-hint">The video is kept out of the upload queue and the reason stays visible.</p>';
+  $('#modal-submit').textContent=type==='schedule'?'Save times':'Skip task';$('#modal').showModal();
   $('#modal-form').onsubmit=async event=>{
     event.preventDefault();$('#modal-submit').disabled=true;
     try{const data=Object.fromEntries(new FormData(event.target));await api(type==='schedule'?'agent_schedule':'task_skip',type==='schedule'?{agent,slots:[data.slot0,data.slot1,data.slot2],timezone:'Asia/Colombo'}:{id,reason:data.reason});$('#modal').close();toast('Saved.');await render();}
