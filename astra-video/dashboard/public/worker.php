@@ -16,9 +16,24 @@ try {
     $q=$pdo->prepare('INSERT INTO workers(name,kind,version,last_seen) VALUES (?,?,?,UTC_TIMESTAMP()) ON DUPLICATE KEY UPDATE kind=VALUES(kind),version=VALUES(version),last_seen=UTC_TIMESTAMP()');
     $q->execute([$worker,implode(',',$capabilities),mb_substr((string)($body['version']??''),0,30)]);
     $pdo->beginTransaction();
+    if ($action==='recover_claim') {
+        $gate=lock_gate($pdo);
+        $pdo->commit();json_response(['clear'=>empty($gate['current_task'])]);
+    }
     if ($action==='claim') {
+        $claimLease=$body['claim_lease']??null;
+        if ($claimLease!==null && (!is_string($claimLease) || !preg_match('/^[a-f0-9]{64}$/',$claimLease))) throw new InvalidArgumentException('Invalid claim receipt.');
+        $gate=lock_gate($pdo);
+        $task=null;
+        if ($claimLease && $gate['current_task']) {
+            $q=$pdo->prepare('SELECT * FROM pipeline_tasks WHERE id=?');$q->execute([$gate['current_task']]);$current=$q->fetch();
+            if ($current && $current['worker_name']===$worker && hash_equals((string)$current['lease_hash'],hash('sha256',$claimLease))) {
+                $task=owned_task($pdo,$worker,(int)$current['id'],$claimLease);
+                $task['lease']=$claimLease;unset($task['lease_hash']);
+            }
+        }
         tick_schedule($pdo);
-        $task=claim_task($pdo,$worker,$capabilities);
+        if (!$task) $task=claim_task($pdo,$worker,$capabilities,$claimLease);
         if ($task) {
             $q=$pdo->prepare('SELECT handle,destination,preset FROM channels WHERE id=?');$q->execute([$task['channel_id']]);$task['channel']=$q->fetch();
             if ($task['job_id']) {$q=$pdo->prepare('SELECT source_video_id,source_url,title FROM jobs WHERE id=?');$q->execute([$task['job_id']]);$task['video']=$q->fetch();}
@@ -40,6 +55,12 @@ try {
         $pdo->commit();json_response(['stop_requested'=>(bool)$task['stop_requested']]);
     }
     if ($action==='complete') {
+        // A lost acknowledgement must not repeat completion side effects.
+        lock_gate($pdo);
+        $q=$pdo->prepare('SELECT state,worker_name,lease_hash FROM pipeline_tasks WHERE id=? FOR UPDATE');$q->execute([(int)($body['id']??0)]);$previous=$q->fetch();
+        if ($previous && in_array($previous['state'],['completed','failed','skipped','cancelled','needs_attention'],true) && $previous['worker_name']===$worker && hash_equals((string)$previous['lease_hash'],hash('sha256',(string)($body['lease']??'')))) {
+            $pdo->commit();json_response(['ok'=>true]);
+        }
         complete_task($pdo,$worker,$body);$pdo->commit();json_response(['ok'=>true]);
     }
     throw new InvalidArgumentException('Unknown worker action.');

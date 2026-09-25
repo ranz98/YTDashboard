@@ -54,7 +54,32 @@ class RunnerTests(unittest.TestCase):
             runner.save(worker.journal, {"phase": "claiming"})
             with self.assertRaises(RuntimeError):
                 worker.run()
-            worker.client.call.assert_not_called()
+            worker.client.call.assert_called_once_with('recover_claim')
+
+    def test_old_lost_claim_recovers_only_when_server_slot_is_clear(self):
+        with tempfile.TemporaryDirectory() as temp:
+            worker = runner.Runner(self.config(), Path(temp))
+            worker.client = Mock()
+            worker.client.call.return_value = {'clear': True}
+            runner.save(worker.journal, {'phase': 'claiming'})
+            worker.stop_file.touch()
+            worker.run()
+            self.assertFalse(worker.journal.exists())
+
+    def test_network_retry_preserves_claim_receipt(self):
+        client = runner.Client(self.config())
+        client.request = Mock(side_effect=[runner.urllib.error.URLError('offline'), {'task': None}])
+        with patch.object(runner.time, 'sleep') as sleep:
+            self.assertEqual(client.call('claim', claim_lease='c'*64), {'task': None})
+        self.assertEqual(client.request.call_args_list[0], client.request.call_args_list[1])
+        sleep.assert_called_once_with(5)
+
+    def test_auth_errors_do_not_retry(self):
+        client = runner.Client(self.config())
+        client.request = Mock(side_effect=runner.urllib.error.HTTPError('url', 401, 'Unauthorized', {}, None))
+        with self.assertRaises(runner.urllib.error.HTTPError):
+            client.call('claim', claim_lease='c'*64)
+        self.assertEqual(client.request.call_count, 1)
 
     def test_failed_delivery_preserves_evidence(self):
         with tempfile.TemporaryDirectory() as temp:

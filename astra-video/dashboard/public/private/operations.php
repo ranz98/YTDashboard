@@ -78,7 +78,7 @@ function tick_schedule(PDO $pdo): void {
     }
 }
 
-function claim_task(PDO $pdo, string $worker, array $capabilities): ?array {
+function claim_task(PDO $pdo, string $worker, array $capabilities, ?string $claimLease=null): ?array {
     $gate=lock_gate($pdo);
     if ($gate['paused'] || $gate['current_task']) return null;
     $q=$pdo->query("SELECT t.*,c.enabled channel_enabled FROM pipeline_tasks t JOIN agents a ON a.name=t.agent JOIN channels c ON c.id=t.channel_id WHERE t.state='queued' AND t.scheduled_at<=UTC_TIMESTAMP() AND a.enabled=1 ORDER BY t.scheduled_at,FIELD(t.agent,'editor','uploader','fetch'),t.id FOR UPDATE");
@@ -94,7 +94,7 @@ function claim_task(PDO $pdo, string $worker, array $capabilities): ?array {
                 continue;
             }
         }
-        $lease=bin2hex(random_bytes(32));
+        $lease=$claimLease ?? bin2hex(random_bytes(32));
         $update=$pdo->prepare("UPDATE pipeline_tasks SET state='running',started_at=UTC_TIMESTAMP(),heartbeat_at=UTC_TIMESTAMP(),worker_name=?,lease_hash=?,attempts=attempts+1,stop_requested=0 WHERE id=?");
         $update->execute([$worker,hash('sha256',$lease),$task['id']]);
         $update=$pdo->prepare('UPDATE execution_gate SET current_task=? WHERE id=1'); $update->execute([$task['id']]);
@@ -169,7 +169,7 @@ function complete_task(PDO $pdo, string $worker, array $body): void {
         $q=$pdo->prepare('UPDATE jobs SET status=?,error=? WHERE id=?');$q->execute([$state,$reason,$job]);
         $q=$pdo->prepare('UPDATE video_progress SET blocked_reason=? WHERE job_id=?');$q->execute([$reason,$job]);
     }
-    $q=$pdo->prepare('UPDATE pipeline_tasks SET state=?,reason=?,finished_at=UTC_TIMESTAMP(),lease_hash=NULL,progress=? WHERE id=?');$q->execute([$state,$reason?:null,$state==='completed'?100:0,$task['id']]);
+    $q=$pdo->prepare('UPDATE pipeline_tasks SET state=?,reason=?,finished_at=UTC_TIMESTAMP(),progress=? WHERE id=?');$q->execute([$state,$reason?:null,$state==='completed'?100:0,$task['id']]);
     $pdo->exec('UPDATE execution_gate SET current_task=NULL WHERE id=1');
     $q=$pdo->prepare('UPDATE agents SET last_finished=UTC_TIMESTAMP() WHERE name=?');$q->execute([$task['agent']]);
     event($pdo,$job,$task['agent'],$state==='completed'?'success':($state==='skipped'?'warning':'error'),'Task #'.$task['id'].' '.$state.($reason?': '.$reason:'.'));

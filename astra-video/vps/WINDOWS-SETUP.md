@@ -121,3 +121,19 @@ There are at most two outbound API requests per editor run. Completed identical
 rewrites are cached privately under `data/rewrite-cache`, avoiding repeat charges
 when a render is retried. Fewer wording attempts can reduce rewrite refinement.
 The original editor files and rendering logic remain unchanged.
+
+## Recovery after a disconnect
+
+The runner reconnects after temporary network errors with a 5–60 second backoff.
+The start.cmd launcher restarts an exited runner after 15 seconds. Keep its window
+open, or use the existing startup shortcut to launch it after Windows sign-in.
+This is not a Windows service and does not run before sign-in.
+
+Task claims use a saved receipt so a lost HTTP response cannot claim a second job.
+Completed results are retried without repeating an edit or upload. A crash during
+an active stage still requires review: do not delete data/active.json. The shared
+slot stays locked because a child process or YouTube upload may still be running.
+
+To stop the restart loop, close its Command Prompt window. A STOP file in the VPS
+folder also stops the launcher after the runner returns. Do not open a second
+runner; the existing instance lock remains in effect.

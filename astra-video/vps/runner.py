@@ -4,6 +4,8 @@ import json
 import logging
 from logging.handlers import RotatingFileHandler
 import os
+import secrets
+import http.client
 from pathlib import Path
 import subprocess
 import sys
@@ -38,6 +40,20 @@ class Client:
         self.opener = urllib.request.build_opener(NoRedirect())
 
     def call(self, action, **values):
+        delay = 5
+        while True:
+            try:
+                return self.request(action, **values)
+            except (urllib.error.URLError, TimeoutError, ConnectionError, http.client.HTTPException) as error:
+                if isinstance(error, urllib.error.HTTPError) and error.code not in (408, 429, 500, 502, 503, 504):
+                    raise
+                if action == 'heartbeat':
+                    raise
+                LOG.warning('Dashboard unavailable (%s); reconnecting in %ss', type(error).__name__, delay)
+                time.sleep(delay)
+                delay = min(60, delay * 2)
+
+    def request(self, action, **values):
         body = dict(values, action=action, version="windows-1.0",
                     capabilities=list(self.config["commands"]))
         request = urllib.request.Request(
@@ -133,8 +149,14 @@ class Runner:
                     if time.monotonic() - last_beat >= 15:
                         status_path = work / 'progress.json'
                         status = read(status_path) if status_path.exists() else {}
-                        reply = self.client.call("heartbeat", id=task["id"], lease=task["lease"],
-                                                 progress=status.get('progress', 0), message=status.get('message', ''))
+                        try:
+                            reply = self.client.call("heartbeat", id=task["id"], lease=task["lease"],
+                                                     progress=status.get('progress', 0), message=status.get('message', ''))
+                        except (urllib.error.URLError, TimeoutError, ConnectionError, http.client.HTTPException) as error:
+                            if isinstance(error, urllib.error.HTTPError) and error.code not in (408, 429, 500, 502, 503, 504):
+                                raise
+                            LOG.warning('Heartbeat unavailable; keeping task %s and its execution slot', task['id'])
+                            reply = {}
                         last_beat = time.monotonic()
                         cancelled = bool(reply.get("stop_requested"))
                     if cancelled or self.stop_file.exists():
@@ -176,17 +198,27 @@ class Runner:
     def run(self):
         if self.journal.exists():
             record = read(self.journal)
-            if record.get("phase") != "complete":
+            if record.get('phase') == 'claiming' and record.get('claim_lease'):
+                response = self.client.call('claim', claim_lease=record['claim_lease'])
+                if response.get('task'):
+                    self.execute(response['task'])
+                else:
+                    self.journal.unlink()
+            elif record.get('phase') == 'claiming' and self.client.call('recover_claim').get('clear') is True:
+                self.journal.unlink()
+            elif record.get("phase") != "complete":
                 raise RuntimeError("An interrupted claim or stage needs review. Do not delete data/active.json or rerun the video.")
-            self.deliver(record)
+            else:
+                self.deliver(record)
         LOG.info("Runner ready: %s", ", ".join(self.config["commands"]))
         while not self.stop_file.exists():
             if self.bridge and not self.bridge.ready():
                 time.sleep(2)
                 continue
             # A lost claim response must never lead to a second claim.
-            save(self.journal, {"phase": "claiming"})
-            response = self.client.call("claim")
+            claim_lease = secrets.token_hex(32)
+            save(self.journal, {"phase": "claiming", "claim_lease": claim_lease})
+            response = self.client.call("claim", claim_lease=claim_lease)
             task = response.get("task")
             if task:
                 LOG.info("Starting task %s (%s)", task["id"], task["agent"])
