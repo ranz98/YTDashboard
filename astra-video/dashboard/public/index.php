@@ -10,7 +10,7 @@ if($isAdmin) $_SESSION['last_seen']=time();
 $csrf=$_SESSION['csrf']; $email=$isAdmin?$_SESSION['email']:'';session_write_close();
 ?>
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="csrf-token" content="<?=h($csrf)?>"><meta name="access-mode" content="<?=$isAdmin?'admin':'public'?>"><meta name="robots" content="noindex,nofollow"><meta name="theme-color" content="#0b0e14"><title>Overview · Astra Video</title><link rel="stylesheet" href="assets/app.css?v=4"><script defer src="assets/operations.js?v=7"></script><script defer src="assets/app.js?v=4"></script></head>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="csrf-token" content="<?=h($csrf)?>"><meta name="access-mode" content="<?=$isAdmin?'admin':'public'?>"><meta name="robots" content="noindex,nofollow"><meta name="theme-color" content="#0b0e14"><title>Overview · Astra Video</title><link rel="stylesheet" href="assets/app.css?v=5"><script defer src="assets/operations.js?v=8"></script><script defer src="assets/browse.js?v=1"></script><script defer src="assets/app.js?v=5"></script></head>
 <body>
 <aside class="sidebar">
   <a class="brand" href="#overview"><span class="brand-mark">A</span><span class="brand-name">Astra<small>Video automation</small></span></a>

@@ -6,16 +6,20 @@ header('Cache-Control: no-store');
 $action=$_GET['action']??'overview';
 if ($action==='health') json_response(['service'=>'astra-video','version'=>'0.2.0','installed'=>configuration()!==null]);
 if (!configuration()) json_response(['error'=>'Complete setup first.'],503);
-$read=['overview','jobs','channels','schedules','logs','analytics','settings','operations','errors','video_checks'];
+$read=['overview','jobs','channels','schedules','logs','analytics','settings','operations','errors','video_checks','video_list','task_list'];
 if (!in_array($action,$read,true)) require_admin();
 try {
     $pdo=db();
     if (in_array($action,$read,true) && $_SERVER['REQUEST_METHOD']!=='GET') json_response(['error'=>'Method not allowed.'],405);
     if (!in_array($action,$read,true) && $_SERVER['REQUEST_METHOD']!=='POST') json_response(['error'=>'Method not allowed.'],405);
     if ($action==='operations') json_response(operations_snapshot($pdo));
+    if (in_array($action,['video_list','task_list'],true)) {
+        require __DIR__.'/private/browse.php';
+        json_response(browse_items($pdo,$action==='video_list'?'videos':'tasks',$_GET));
+    }
     if ($action==='errors') {
         $events=$pdo->query("SELECT e.*,c.name channel_name,j.title FROM events e LEFT JOIN jobs j ON j.id=e.job_id LEFT JOIN channels c ON c.id=j.channel_id WHERE e.level IN ('error','warning') ORDER BY e.id DESC LIMIT 200")->fetchAll();
-        $tasks=$pdo->query("SELECT t.id,t.agent,t.state,t.reason,t.job_id,t.started_at,t.finished_at,c.name channel_name FROM pipeline_tasks t JOIN channels c ON c.id=t.channel_id WHERE t.state IN ('failed','blocked','skipped','needs_attention') OR (t.state='running' AND t.heartbeat_at<UTC_TIMESTAMP()-INTERVAL 120 SECOND) ORDER BY t.id DESC LIMIT 200")->fetchAll();
+        $tasks=$pdo->query("SELECT t.id,t.agent,t.state,t.reason,t.job_id,t.created_at,t.scheduled_at,t.started_at,t.finished_at,c.name channel_name,j.title FROM pipeline_tasks t JOIN channels c ON c.id=t.channel_id LEFT JOIN jobs j ON j.id=t.job_id WHERE t.state IN ('failed','blocked','skipped','needs_attention') OR (t.state='running' AND t.heartbeat_at<UTC_TIMESTAMP()-INTERVAL 120 SECOND) ORDER BY t.id DESC LIMIT 200")->fetchAll();
         json_response(['events'=>$events,'tasks'=>$tasks]);
     }
     if ($action==='video_checks') {

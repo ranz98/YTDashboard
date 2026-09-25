@@ -30,7 +30,7 @@ async function api(action, body, query = '') {
   return data;
 }
 function toast(message){ const node=$('#toast');node.textContent=message;node.hidden=false;clearTimeout(toast.timer);toast.timer=setTimeout(()=>node.hidden=true,4500); }
-function date(value){ if(!value)return '—';const d=new Date(value.includes('T')?value:value.replace(' ','T')+'Z');return Number.isNaN(d.valueOf())?'—':d.toLocaleString(undefined,{timeZone:'Asia/Colombo',month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}); }
+function date(value){ if(!value)return '—';const d=new Date(value.includes('T')?value:value.replace(' ','T')+'Z');return Number.isNaN(d.valueOf())?'—':d.toLocaleString('en-GB',{timeZone:'Asia/Colombo',year:'numeric',month:'short',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false})+' SL'; }
 // Colour carries meaning only: green done, blue working, amber needs you, red failed.
 function badge(status){const s=String(status??'');const color=['published','connected','success','enabled','completed','downloaded'].includes(s)?'green':['running','editing','uploading','downloading','verifying','ready','info'].includes(s)?'blue':['needs_attention','paused','warning','stopping'].includes(s)?'amber':['failed','error','blocked','stalled'].includes(s)?'red':'';const label=s.replaceAll('_',' ');return `<span class="badge ${color}"><b></b>${esc(label.charAt(0).toUpperCase()+label.slice(1))}</span>`;}
 function empty(title, text, action='', symbol=icon('video')){return `<div class="empty"><span class="empty-symbol">${symbol}</span><h3>${esc(title)}</h3><p>${esc(text)}</p>${action}</div>`;}

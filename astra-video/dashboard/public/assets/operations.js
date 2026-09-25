@@ -123,24 +123,24 @@ function kpis(d){
 
 function taskCards(tasks,compact=false){
   if(!tasks.length)return empty('The queue is clear','Fetched videos move through edit and upload here. Skipped or failed work stays visible with its reason.','',icon('queue'));
-  return `<div class="table-wrap"><table class="data"><thead><tr><th>Video / task</th><th>Agent</th><th>Status</th><th>Time</th><th><span class="sr-only">Actions</span></th></tr></thead><tbody>${tasks.map(t=>{
+  return `<div class="table-wrap"><table class="data"><thead><tr><th>Video / task</th><th>Agent</th><th>Status</th>${compact?'<th>Time (SL)</th>':'<th>Created (SL)</th><th>Scheduled (SL)</th><th>Started (SL)</th><th>Finished (SL)</th>'}<th><span class="sr-only">Actions</span></th></tr></thead><tbody>${tasks.map(t=>{
     const info=AGENT_INFO[t.agent];
     const canRetry=['failed','skipped','cancelled'].includes(t.state)&&t.agent!=='uploader';
     const done=t.agent==='uploader'&&t.state==='completed'?'Posted':'Finished';
     const when=t.finished_at?`${done} ${date(t.finished_at)}`:t.started_at?`Started ${date(t.started_at)}`:`Scheduled ${date(t.scheduled_at)}`;
     const planned=!compact&&(t.finished_at||t.started_at)&&t.scheduled_at?`<small class="cell-note">Scheduled ${date(t.scheduled_at)}</small>`:'';
     const actions=`${t.job_id?`<button class="button small ghost" data-command="job-log" data-id="${t.job_id}">${icon('log')}Logs</button>`:''}${t.state==='queued'?opButton('skip',icon('skip')+'Skip',`data-id="${t.id}"`,'small'):''}${canRetry?opButton('retry',icon('retry')+'Retry',`data-id="${t.id}"`,'small'):''}`;
-    return `<tr><td class="cell-main" data-label="Video"><div class="cell-title">${esc(t.title||`${info.name} · ${t.channel_name}`)}</div><div class="cell-sub">#${t.id} · ${esc(t.channel_name)}</div>${t.reason?`<div class="reason">${icon('alert')}<span>${esc(t.reason)}</span></div>`:''}</td><td data-label="Agent"><span class="agent-tag">${icon(info.icon)}${info.name}</span></td><td data-label="Status">${badge(t.state)}</td><td data-label="Time" class="time-cell"><div>${when}${planned}</div></td><td class="actions-cell">${actions?`<div class="row-actions">${actions}</div>`:''}</td></tr>`;
+    return `<tr><td class="cell-main" data-label="Video"><div class="cell-title">${esc(t.title||`${info.name} · ${t.channel_name}`)}</div><div class="cell-sub">#${t.id} · ${esc(t.channel_name)}</div>${t.reason?`<div class="reason">${icon('alert')}<span>${esc(t.reason)}</span></div>`:''}</td><td data-label="Agent"><span class="agent-tag">${icon(info.icon)}${info.name}</span></td><td data-label="Status">${badge(t.state)}</td>${compact?`<td data-label="Time (SL)" class="time-cell"><div>${when}${planned}</div></td>`:[ ['Created',t.created_at],['Scheduled',t.scheduled_at],['Started',t.started_at],[done,t.finished_at] ].map(([label,stamp])=>`<td class="time-cell" data-label="${label} (SL)">${date(stamp)}</td>`).join('')}<td class="actions-cell">${actions?`<div class="row-actions">${actions}</div>`:''}</td></tr>`;
   }).join('')}</tbody></table></div>`;
 }
 
 function videoCards(videos){
   if(!videos.length)return empty('No videos yet','Each fetched video appears here with a check for every finished stage.','',icon('video'));
-  const step=(ok,label)=>`<td class="step-cell" data-label="${label}"><span class="step ${ok?'done':''}" title="${label}: ${ok?'done':'pending'}">${ok?icon('check'):''}</span></td>`;
-  return `<div class="table-wrap"><table class="data videos-table"><thead><tr><th>Video</th><th class="center">Downloaded</th><th class="center">Title</th><th class="center">Edited</th><th class="center">Posted</th><th>Status</th><th>Result</th></tr></thead><tbody>${videos.map(v=>{
+  const step=(ok,label,stamp)=>`<td class="step-cell" data-label="${label}"><div class="stage-detail"><span class="step ${ok?'done':''}" title="${label}: ${ok?'done':'pending'}">${ok?icon('check'):''}</span><small>${ok?(stamp?date(stamp):'Complete · time not recorded'):'Pending'}</small></div></td>`;
+  return `<div class="table-wrap"><table class="data videos-table"><thead><tr><th>Video</th><th class="center">Fetched (SL)</th><th class="center">Title verified (SL)</th><th class="center">Edited (SL)</th><th class="center">Uploaded (SL)</th><th>Status</th><th>Result</th></tr></thead><tbody>${videos.map(v=>{
     const link=v.published_url&&/^https:\/\/www\.youtube\.com\//.test(v.published_url)?` <a class="text-link" href="${esc(v.published_url)}" target="_blank" rel="noopener">View${icon('external')}</a>`:'';
     const result=v.published_at?'Posted '+date(v.published_at):v.edited_at?'Edited '+date(v.edited_at)+(v.blocked_reason?'':' · waiting for a slot'):'<span class="muted-text">Not posted</span>';
-    return `<tr><td class="cell-main" data-label="Video"><div class="cell-title">${esc(v.title||v.original_title||v.source_video_id)}</div><div class="cell-sub">${esc(v.channel_name)} · ${esc(v.source_video_id)}</div>${v.blocked_reason?`<div class="reason red">${icon('alert')}<span>Cannot post: ${esc(v.blocked_reason)}</span></div>`:''}</td>${step(v.downloaded_at,'Downloaded')}${step(Number(v.title_ready),'Title')}${step(v.edited_at,'Edited')}${step(v.published_at,'Posted')}<td data-label="Status">${badge(v.status)}</td><td data-label="Result" class="result-cell"><div>${result}${link}</div></td></tr>`;
+    return `<tr><td class="cell-main" data-label="Video"><div class="cell-title">${esc(v.title||v.original_title||v.source_video_id)}</div><div class="cell-sub">${esc(v.channel_name)} · ${esc(v.source_video_id)}</div>${v.blocked_reason?`<div class="reason red">${icon('alert')}<span>Cannot post: ${esc(v.blocked_reason)}</span></div>`:''}</td>${step(v.downloaded_at,'Fetched',v.downloaded_at)}${step(Number(v.title_ready),'Title verified',v.edited_at)}${step(v.edited_at,'Edited',v.edited_at)}${step(v.published_at,'Uploaded / published',v.published_at)}<td data-label="Status">${badge(v.status)}</td><td data-label="Result" class="result-cell"><div>${result}${link}<small class="cell-note">Last activity ${date(v.activity_at||v.updated_at)}</small></div></td></tr>`;
   }).join('')}</tbody></table></div>`;
 }
 
@@ -166,11 +166,8 @@ async function renderOperations(view){
     const recent=[...d.tasks].sort((a,b)=>priority(a)-priority(b)||Number(b.id)-Number(a.id));
     return `${statusCard(d)}${kpis(d)}${panel('Agents','One task runs at a time · Sri Lanka time',agentsTable(d))}${panel('Queue','Running and waiting tasks first',taskCards(recent.slice(0,5),true),`<a class="text-link" href="#jobs">View all${icon('arrow')}</a>`)}${panel('Recent videos','A check means the stage is complete',videoCards(v.items.slice(0,5)),`<a class="text-link" href="#library">View all${icon('arrow')}</a>`)}`;
   }
-  if(view==='jobs'){
-    const states=['queued','running','completed','skipped','failed','blocked','needs_attention'].filter(s=>d.tasks.some(t=>t.state===s));
-    return `${controlBar(d)}<div class="queue-filters"><button data-queue-filter="all" class="filter-chip selected">All <b>${d.tasks.length}</b></button>${states.map(s=>`<button data-queue-filter="${s}" class="filter-chip">${s.replaceAll('_',' ')} <b>${d.tasks.filter(t=>t.state===s).length}</b></button>`).join('')}</div>${panel('All tasks','Oldest ready task runs first. Uploads need a finished edit and title.',`<div id="task-list">${taskCards(d.tasks)}</div>`)}<p class="footnote">If a worker disconnects mid-task, its slot stays locked so two tasks never overlap.</p>`;
-  }
-  if(view==='library'){const v=await api('video_checks');return panel('Videos',`${v.items.length} tracked · Sri Lanka time`,videoCards(v.items))+panel('Latest channel check','The last five videos the fetch agent looked at',scanCards(d.latest_scan||[]));}
+  if(view==='jobs')return controlBar(d)+await renderBrowse('jobs');
+  if(view==='library')return await renderBrowse('library')+panel('Latest channel check','The last five videos the fetch agent looked at',scanCards(d.latest_scan||[]));
   if(view==='schedules'){
     const rows=d.agents.map(a=>{
       const info=AGENT_INFO[a.name],isEditor=a.name==='editor';
@@ -180,11 +177,8 @@ async function renderOperations(view){
     }).join('');
     return `${controlBar(d)}${panel('Daily schedule','3 fetches and 3 posts a day · shown in Sri Lanka time',`<div class="table-wrap"><table class="data"><thead><tr><th>Agent</th><th>Daily times</th><th>Next run</th><th>Based on</th><th>Status</th><th><span class="sr-only">Actions</span></th></tr></thead><tbody>${rows}</tbody></table></div>`)}<p class="footnote">Fetches run 45 minutes before each post so edits have time to finish. If no edited video is ready, that post slot is skipped.</p>`;
   }
-  if(view==='errors'){
-    const e=await api('errors');
-    const runningStale=e.tasks.filter(t=>t.state==='running').length;
-    return `<div class="summary-banner tone-${e.tasks.length?'amber':'green'}"><span class="icon-box">${icon(e.tasks.length?'alert':'check')}</span><div><h2>${e.tasks.length?e.tasks.length+(e.tasks.length===1?' task needs':' tasks need')+' a look':'No task errors'}</h2><p>${runningStale?'A worker heartbeat was lost. The execution slot is still locked.':'Skipped, failed and uncertain uploads stay here until reviewed.'}</p></div></div>${panel('Blocked work','Skipped videos cannot post. Uncertain uploads need checking on YouTube first.',taskCards(e.tasks.map(t=>({...t,scheduled_at:t.started_at,channel_name:t.channel_name}))))}${panel('Warnings & errors','Latest 200 events · Sri Lanka time',eventsTable(e.events))}`;
-  }
+  if(view==='errors')return renderErrorReview(await api('errors'));
+
 }
 
 function bindOperations(){tickClocks();}
@@ -204,8 +198,6 @@ async function operationDialog(type,agent,id){
 }
 
 document.addEventListener('click',async event=>{
-  const filter=event.target.closest('[data-queue-filter]');
-  if(filter){document.querySelectorAll('[data-queue-filter]').forEach(n=>n.classList.toggle('selected',n===filter));$('#task-list').innerHTML=taskCards(operationsState.tasks.filter(t=>filter.dataset.queueFilter==='all'||t.state===filter.dataset.queueFilter));return;}
   const button=event.target.closest('[data-op]');if(!button||!isAdmin)return;
   const op=button.dataset.op,agent=button.dataset.agent,id=Number(button.dataset.id);
   if(op==='schedule'||op==='skip')return operationDialog(op,agent,id);
@@ -219,5 +211,5 @@ document.addEventListener('click',async event=>{
   }catch(error){toast(error.message);button.disabled=false;}
 });
 setInterval(()=>{
-  if(operationPages.includes(page)&&!document.hidden&&!$('#modal').open&&!$('.sidebar').classList.contains('open')&&!content.contains(document.activeElement))render(true);
+  if(operationPages.includes(page)&&!['jobs','library','errors'].includes(page)&&!document.hidden&&!$('#modal').open&&!$('.sidebar').classList.contains('open')&&!content.contains(document.activeElement))render(true);
 },10000);
