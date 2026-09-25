@@ -370,3 +370,5 @@ dialog::backdrop{background:rgba(3,6,12,.7)}
 
 .stage-totals{grid-template-columns:repeat(3,minmax(0,1fr))}.stage-totals .kpi-value{color:var(--accent-text)}
 @media(max-width:600px){.stage-totals{grid-template-columns:1fr}.stage-totals .kpi{display:grid;grid-template-columns:1fr auto;gap:4px 16px}.stage-totals .kpi-value{grid-column:2;grid-row:1/3}.stage-totals small{grid-column:1}}
+
+.resolution-check{display:flex;align-items:flex-start;gap:10px;line-height:1.7}.resolution-check input{width:18px;min-height:18px;height:18px;margin-top:4px;flex-shrink:0}

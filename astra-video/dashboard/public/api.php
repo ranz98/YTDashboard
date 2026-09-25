@@ -51,7 +51,11 @@ try {
     }
     if ($action==='settings') json_response(['version'=>'0.2.0','database'=>'Connected','timezone'=>'Asia/Colombo','automation_available'=>false,'workers'=>$pdo->query('SELECT name,kind,version,last_seen FROM workers ORDER BY id')->fetchAll()]);
     $body=input();
-    if (in_array($action,['operations_migrate','pipeline_control','agent_control','agent_schedule','agent_run','task_skip','task_retry'],true)) json_response(handle_operations($pdo,$action,$body));
+    if ($action==='upload_resolution_checks') {
+        require __DIR__.'/private/upload-resolution-checks.php';
+        json_response(upload_resolution_checks($pdo));
+    }
+    if (in_array($action,['operations_migrate','pipeline_control','agent_control','agent_schedule','agent_run','upload_resolve','task_skip','task_retry'],true)) json_response(handle_operations($pdo,$action,$body));
     if ($action==='queue_checks') {
         require __DIR__.'/private/queue-checks.php';
         json_response(run_queue_checks($pdo));

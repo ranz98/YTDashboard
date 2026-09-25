@@ -134,7 +134,7 @@ function taskCards(tasks,compact=false){
     const done=t.agent==='uploader'&&t.state==='completed'?'Posted':'Finished';
     const when=t.finished_at?`${done} ${date(t.finished_at)}`:t.started_at?`Started ${date(t.started_at)}`:`Scheduled ${date(t.scheduled_at)}`;
     const planned=!compact&&(t.finished_at||t.started_at)&&t.scheduled_at?`<small class="cell-note">Scheduled ${date(t.scheduled_at)}</small>`:'';
-    const actions=`${t.job_id?`<button class="button small ghost" data-command="job-log" data-id="${t.job_id}">${icon('log')}Logs</button>`:''}${t.state==='queued'?opButton('skip',icon('skip')+'Skip',`data-id="${t.id}"`,'small'):''}${canRetry?opButton('retry',icon('retry')+'Retry',`data-id="${t.id}"`,'small'):''}`;
+    const actions=`${t.job_id?`<button class="button small ghost" data-command="job-log" data-id="${t.job_id}">${icon('log')}Logs</button>`:''}${t.state==='queued'?opButton('skip',icon('skip')+'Skip',`data-id="${t.id}"`,'small'):''}${t.agent==='uploader'&&['needs_attention','failed','skipped','cancelled'].includes(t.state)?opButton('resolve-upload','Resolve upload',`data-id="${t.id}"`,'small primary'):''}${canRetry?opButton('retry',icon('retry')+'Retry',`data-id="${t.id}"`,'small'):''}`;
     return `<tr><td class="cell-main" data-label="Video"><div class="cell-title">${esc(t.title||`${info.name} · ${t.channel_name}`)}</div><div class="cell-sub">#${t.id} · ${esc(t.channel_name)}</div>${t.reason?`<div class="reason">${icon('alert')}<span>${esc(t.reason)}</span></div>`:''}</td><td data-label="Agent"><span class="agent-tag">${icon(info.icon)}${info.name}</span></td><td data-label="Status">${badge(t.state)}</td>${compact?`<td data-label="Time (SL)" class="time-cell"><div>${when}${planned}</div></td>`:[ ['Created',t.created_at],['Scheduled',t.scheduled_at],['Started',t.started_at],[done,t.finished_at] ].map(([label,stamp])=>`<td class="time-cell" data-label="${label} (SL)">${date(stamp)}</td>`).join('')}<td class="actions-cell">${actions?`<div class="row-actions">${actions}</div>`:''}</td></tr>`;
   }).join('')}</tbody></table></div>`;
 }
@@ -205,6 +205,7 @@ async function operationDialog(type,agent,id){
 document.addEventListener('click',async event=>{
   const button=event.target.closest('[data-op]');if(!button||!isAdmin)return;
   const op=button.dataset.op,agent=button.dataset.agent,id=Number(button.dataset.id);
+  if(op==='resolve-upload')return uploadResolutionDialog(id);
   if(op==='schedule'||op==='skip')return operationDialog(op,agent,id);
   button.disabled=true;
   try{

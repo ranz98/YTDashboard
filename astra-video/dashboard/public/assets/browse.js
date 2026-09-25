@@ -6,6 +6,28 @@ const browseFilters={
 let browseRows=[],browseTotal=0,browseMore=false,browseLoading=false,browseGeneration=0,browseOffset=0;
 let errorSnapshot=null,showDismissed=false;
 const dismissKey='astra.dismissed-errors.v1';
+
+function uploadResolutionDialog(id){
+  if(!isAdmin)return;
+  $('#modal-error').hidden=true;$('#modal-title').textContent='Resolve upload #'+id;
+  $('#modal-fields').innerHTML=`<p class="form-hint">Check this exact video in YouTube Studio first. A processing screen alone does not confirm publication.</p><label>What happened?<select id="upload-outcome" name="outcome"><option value="published">Already Public — record existing upload</option><option value="hold">Keep this video on hold — clear queue entry</option><option value="retry">No upload exists — queue a fresh attempt</option></select></label><div id="publication-fields"><label>Published YouTube video link<input name="url" type="url" placeholder="https://www.youtube.com/watch?v=…" required></label><label>Actual publication time (Sri Lanka)<input name="published_at" type="datetime-local" required></label><p class="form-hint">This records your Studio confirmation and updates Uploaded totals. It does not publish a video on YouTube.</p></div><p class="form-hint" id="upload-resolution-help"></p><label class="resolution-check"><input type="checkbox" name="confirmed" required><span id="upload-confirm-label">I checked that this exact video is Public on the correct destination channel.</span></label>`;
+  const outcome=$('#upload-outcome');
+  outcome.onchange=()=>{
+    const published=outcome.value==='published';$('#publication-fields').hidden=!published;
+    $('#publication-fields').querySelectorAll('input').forEach(n=>{n.required=published;n.disabled=!published;});
+    $('#modal-fields input[name="confirmed"]').checked=false;
+    $('#upload-confirm-label').textContent=published?'I checked that this exact video is Public on the correct destination channel.':outcome.value==='retry'?'I checked Studio: no copy exists, including private, draft, processing, or scheduled uploads. Any earlier copy has been removed.':'I want this video held out of future uploads while other eligible videos continue.';
+    $('#upload-resolution-help').textContent=outcome.value==='retry'?'Retry queues a new upload immediately. It waits for active work, enabled agents, and the daily limit.':outcome.value==='hold'?'This clears the queue entry without marking the video published. You can resolve it later from Queue → Upload → Cancelled.':'';
+    $('#modal-submit').textContent=published?'Record published video':outcome.value==='retry'?'Queue retry':'Keep video on hold';
+  };
+  outcome.onchange();$('#modal').showModal();
+  $('#modal-form').onsubmit=async event=>{
+    event.preventDefault();$('#modal-submit').disabled=true;
+    try{const data=Object.fromEntries(new FormData(event.target));await api('upload_resolve',{...data,id,confirmed:data.confirmed==='on'});$('#modal').close();toast(data.outcome==='published'?'Existing publication recorded. Uploaded totals updated.':data.outcome==='retry'?'Upload retry queued.':'Video held. Other uploads can continue.');await render();}
+    catch(error){$('#modal-error').textContent=error.message;$('#modal-error').hidden=false;}
+    finally{$('#modal-submit').disabled=false;}
+  };
+}
 function dismissedErrors(){try{return new Set(JSON.parse(localStorage.getItem(dismissKey)||'[]'));}catch{return new Set();}}
 const errorKey=(kind,row)=>`${kind}:${row.id}:${row.state||row.level}:${row.finished_at||row.started_at||row.created_at||''}`;
 function choices(values,selected){return values.map(([value,label])=>`<option value="${value}" ${selected===value?'selected':''}>${label}</option>`).join('');}

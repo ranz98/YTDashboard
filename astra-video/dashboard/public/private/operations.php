@@ -49,7 +49,7 @@ function ready_video(PDO $pdo): array|false {
 }
 
 function upload_pending(PDO $pdo): bool {
-    return (bool)$pdo->query("SELECT id FROM pipeline_tasks WHERE agent='uploader' AND state IN ('queued','running','needs_attention') LIMIT 1")->fetchColumn();
+    return (bool)$pdo->query("SELECT id FROM pipeline_tasks WHERE agent='uploader' AND state IN ('queued','running') LIMIT 1")->fetchColumn();
 }
 
 // The caller holds the shared gate for the whole scheduling decision.
@@ -252,7 +252,7 @@ function handle_operations(PDO $pdo, string $action, array $body): array {
                 $posted=(int)$pdo->query("SELECT COUNT(*) FROM video_progress WHERE published_at >= DATE(DATE_ADD(UTC_TIMESTAMP(),INTERVAL 330 MINUTE))-INTERVAL 330 MINUTE")->fetchColumn();
                 if ($posted>=3) throw new InvalidArgumentException('Today’s limit of three posts has been reached (Sri Lanka time).');
             }
-            if (upload_pending($pdo)) throw new InvalidArgumentException('An upload is already queued or needs attention. Resolve it before queuing another.');
+            if (upload_pending($pdo)) throw new InvalidArgumentException('An upload is already queued or running. View Upload tasks in the Queue.');
             $video=ready_video($pdo);
             if (!$video) throw new InvalidArgumentException('Nothing can be posted. A successfully edited, unblocked video is required.');
             $due=$immediate?null:$pdo->query("SELECT next_run FROM agents WHERE name='uploader'")->fetchColumn();
@@ -260,6 +260,9 @@ function handle_operations(PDO $pdo, string $action, array $body): array {
             if ($immediate) event($pdo,(int)$video['job_id'],'uploader','info','Upload now queued. Waiting for the worker and exclusive execution slot.');
         } else throw new InvalidArgumentException('Unknown agent.');
         event($pdo,null,$agent,'info','Manual queue request saved. Paused agents will wait until started.');
+    } elseif ($action==='upload_resolve') {
+        require_once __DIR__.'/upload-resolution.php';
+        resolve_upload($pdo,$gate,$body);
     } elseif ($action==='task_skip' || $action==='task_retry') {
         $q=$pdo->prepare('SELECT * FROM pipeline_tasks WHERE id=? FOR UPDATE');$q->execute([(int)($body['id']??0)]);$task=$q->fetch();
         if (!$task) throw new InvalidArgumentException('Task not found.');
