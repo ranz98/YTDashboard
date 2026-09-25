@@ -43,6 +43,8 @@ document.addEventListener('change',async event=>{
   await render();
 });
 document.addEventListener('click',async event=>{
+  const total=event.target.closest('[data-total-stage]');
+  if(total){Object.assign(browseFilters.library,{stage:total.dataset.totalStage,range:'all',from:'',to:''});return;}
   const stage=event.target.closest('[data-browse-stage]');
   if(stage&&browseFilters[page]){browseFilters[page].stage=stage.dataset.browseStage;await render();return;}
   if(event.target.closest('[data-browse-reset]')&&browseFilters[page]){Object.assign(browseFilters[page],{stage:'all',state:'all',range:'all',from:'',to:'',sort:'activity'});await render();return;}

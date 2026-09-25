@@ -176,6 +176,8 @@ function complete_task(PDO $pdo, string $worker, array $body): void {
 }
 
 function operations_snapshot(PDO $pdo): array {
+    $totals=$pdo->query('SELECT COUNT(downloaded_at) fetched,COUNT(edited_at) edited,COUNT(published_at) uploaded FROM video_progress')->fetch();
+    $totals=array_map('intval',$totals);
     $gate=$pdo->query('SELECT * FROM execution_gate WHERE id=1')->fetch();
     $agents=$pdo->query('SELECT * FROM agents ORDER BY FIELD(name,\'fetch\',\'editor\',\'uploader\')')->fetchAll();
     $active=null;
@@ -204,7 +206,7 @@ function operations_snapshot(PDO $pdo): array {
     $tasks=$pdo->query('SELECT t.id,t.agent,t.channel_id,t.job_id,t.state,t.scheduled_at,t.started_at,t.finished_at,t.stop_requested,t.progress,t.reason,t.attempts,c.name channel_name,j.title,j.published_url FROM pipeline_tasks t JOIN channels c ON c.id=t.channel_id LEFT JOIN jobs j ON j.id=t.job_id ORDER BY t.id DESC LIMIT 200')->fetchAll();
     $published=$pdo->query("SELECT j.id,j.title,j.published_url,j.finished_at,c.name channel_name FROM jobs j JOIN channels c ON c.id=j.channel_id WHERE j.status='published' ORDER BY j.finished_at DESC LIMIT 12")->fetchAll();
     $scan=$pdo->query('SELECT f.*,c.name channel_name FROM fetch_observations f JOIN pipeline_tasks t ON t.id=f.task_id JOIN channels c ON c.id=t.channel_id ORDER BY f.task_id DESC,f.checked_at DESC LIMIT 5')->fetchAll();
-    return ['server_time'=>gmdate('c'),'timezone'=>LOCAL_ZONE,'paused'=>(bool)$gate['paused'],'online'=>$online,'agents'=>$agents,'active'=>$active,'ready'=>$ready,'blocked'=>$blocked,'tasks'=>$tasks,'published'=>$published,'latest_scan'=>$scan,'workers'=>$workers,'fetch_limit'=>5,'schedule_note'=>'US Eastern slots adjust for daylight saving. Displayed in Sri Lanka time.'];
+    return ['totals'=>$totals,'server_time'=>gmdate('c'),'timezone'=>LOCAL_ZONE,'paused'=>(bool)$gate['paused'],'online'=>$online,'agents'=>$agents,'active'=>$active,'ready'=>$ready,'blocked'=>$blocked,'tasks'=>$tasks,'published'=>$published,'latest_scan'=>$scan,'workers'=>$workers,'fetch_limit'=>5,'schedule_note'=>'US Eastern slots adjust for daylight saving. Displayed in Sri Lanka time.'];
 }
 
 function handle_operations(PDO $pdo, string $action, array $body): array {

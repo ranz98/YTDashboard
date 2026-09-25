@@ -114,6 +114,11 @@ function statusCard(d){
   return `<section class="status-card tone-${tone}"><div class="status-main"><span class="status-orb"><b></b></span><div><p class="status-kicker">${kicker}</p><h2>${esc(status.title)}</h2><p class="status-detail">${esc(status.detail)}</p></div></div><div class="status-actions"><a class="button" href="${href}">${label}${icon('arrow')}</a>${pipelineButton(d)}</div></section>`;
 }
 
+function stageTotals(d){
+  const totals=d.totals||{};
+  return `<div class="kpi-grid stage-totals">${[['fetched','Fetched videos','Downloads completed'],['edited','Edited videos','Edits completed'],['uploaded','Uploaded videos','Publication confirmed']].map(([stage,label,help])=>`<a class="kpi" href="#library" data-total-stage="${stage}"><span class="kpi-label">${label}</span><strong class="kpi-value">${Number(totals[stage]||0).toLocaleString('en-GB')}</strong><small>${help} · all time</small></a>`).join('')}</div>`;
+}
+
 function kpis(d){
   const post=d.agents.find(a=>a.name==='uploader');
   const queued=d.tasks.filter(t=>t.state==='queued').length;
@@ -164,7 +169,7 @@ async function renderOperations(view){
     const v=await api('video_checks');
     const priority=t=>t.state==='running'?0:t.state==='queued'?1:2;
     const recent=[...d.tasks].sort((a,b)=>priority(a)-priority(b)||Number(b.id)-Number(a.id));
-    return `${statusCard(d)}${kpis(d)}${panel('Agents','One task runs at a time · Sri Lanka time',agentsTable(d))}${panel('Queue','Running and waiting tasks first',taskCards(recent.slice(0,5),true),`<a class="text-link" href="#jobs">View all${icon('arrow')}</a>`)}${panel('Recent videos','A check means the stage is complete',videoCards(v.items.slice(0,5)),`<a class="text-link" href="#library">View all${icon('arrow')}</a>`)}`;
+    return `${statusCard(d)}${kpis(d)}${stageTotals(d)}${panel('Agents','One task runs at a time · Sri Lanka time',agentsTable(d))}${panel('Queue','Running and waiting tasks first',taskCards(recent.slice(0,5),true),`<a class="text-link" href="#jobs">View all${icon('arrow')}</a>`)}${panel('Recent videos','A check means the stage is complete',videoCards(v.items.slice(0,5)),`<a class="text-link" href="#library">View all${icon('arrow')}</a>`)}`;
   }
   if(view==='jobs')return controlBar(d)+await renderBrowse('jobs');
   if(view==='library')return await renderBrowse('library')+panel('Latest channel check','The last five videos the fetch agent looked at',scanCards(d.latest_scan||[]));
