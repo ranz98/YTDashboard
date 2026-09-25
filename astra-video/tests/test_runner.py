@@ -12,6 +12,28 @@ spec.loader.exec_module(runner)
 
 
 class RunnerTests(unittest.TestCase):
+    def test_busy_instance_does_not_enter_runner(self):
+        fake = Mock()
+        fake.locking.side_effect = PermissionError(13, 'Locked')
+        with tempfile.TemporaryDirectory() as temp, patch.dict(runner.sys.modules, {'msvcrt': fake}):
+            with self.assertRaises(runner.InstanceBusy):
+                with runner.instance_lock(Path(temp) / 'runner.lock'):
+                    self.fail('A second runner entered the lock')
+
+    def test_instance_unlocks_after_failure(self):
+        fake = Mock()
+        with tempfile.TemporaryDirectory() as temp, patch.dict(runner.sys.modules, {'msvcrt': fake}):
+            with self.assertRaises(ValueError):
+                with runner.instance_lock(Path(temp) / 'runner.lock'):
+                    raise ValueError('Startup failed')
+        self.assertEqual(fake.locking.call_count, 2)
+        self.assertEqual(fake.locking.call_args.args[1], fake.LK_UNLCK)
+
+    def test_permission_error_names_the_file(self):
+        message = runner.failure_message(PermissionError(13, 'Denied', 'data/runner.log'))
+        self.assertIn('data/runner.log', message)
+        self.assertIn('Access denied', message)
+
     def test_editor_limits_leave_cpu_headroom(self):
         for cpus, expected in [(1, '1'), (2, '1'), (4, '2'), (16, '2')]:
             with patch.object(runner.os, 'cpu_count', return_value=cpus):

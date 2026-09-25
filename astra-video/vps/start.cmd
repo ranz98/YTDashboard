@@ -15,6 +15,11 @@ if errorlevel 1 (
 :run
 if exist STOP exit /b 0
 "%ASTRA_RUNTIME%" runner.py
+if errorlevel 2 (
+  echo Startup needs attention. Read the message above before starting again.
+  pause
+  exit /b 2
+)
 if exist STOP exit /b 0
 echo Runner exited. Restarting in 15 seconds. Close this window to stop.
 timeout /t 15 /nobreak >nul

@@ -1,5 +1,6 @@
 """Windows queue runner. Stage commands exchange JSON files with this process."""
 import argparse
+from contextlib import contextmanager
 import json
 import logging
 from logging.handlers import RotatingFileHandler
@@ -16,6 +17,40 @@ import urllib.request
 
 BASE = Path(__file__).resolve().parent
 LOG = logging.getLogger("astra")
+
+
+class InstanceBusy(RuntimeError):
+    pass
+
+
+@contextmanager
+def instance_lock(path):
+    import msvcrt
+    # Lock before opening the shared log, which may otherwise fail during rotation.
+    with path.open('a+b') as lock:
+        lock.seek(0, os.SEEK_END)
+        if lock.tell() == 0:
+            lock.write(b'0')
+            lock.flush()
+        lock.seek(0)
+        try:
+            msvcrt.locking(lock.fileno(), msvcrt.LK_NBLCK, 1)
+        except OSError as error:
+            raise InstanceBusy('Cannot acquire ' + str(path) + '. Another Astra runner may already be open. '
+                               'Close the extra launcher; do not delete the lock or active.json.') from error
+        try:
+            yield
+        finally:
+            lock.seek(0)
+            msvcrt.locking(lock.fileno(), msvcrt.LK_UNLCK, 1)
+
+
+def failure_message(error):
+    if isinstance(error, PermissionError):
+        target = str(error.filename or 'a Windows resource (no path reported)')
+        code = getattr(error, 'winerror', None) or error.errno
+        return 'Access denied: ' + target + ' (error ' + str(code) + '). Check folder permissions and other running Astra instances.'
+    return str(error) if isinstance(error, (ValueError, RuntimeError)) else type(error).__name__
 
 
 def save(path, value):
@@ -244,15 +279,9 @@ def main():
         print("Configuration valid. No task claimed and no video uploaded.")
         return
     (BASE / "data").mkdir(exist_ok=True)
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s", handlers=[
-        logging.StreamHandler(), RotatingFileHandler(BASE / "data/runner.log", maxBytes=2_000_000, backupCount=3)])
-    import msvcrt
-    with (BASE / "data/runner.lock").open("a+b") as lock:
-        lock.seek(0)
-        lock.write(b"0")
-        lock.flush()
-        lock.seek(0)
-        msvcrt.locking(lock.fileno(), msvcrt.LK_NBLCK, 1)
+    with instance_lock(BASE / 'data/runner.lock'):
+        logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s", handlers=[
+            logging.StreamHandler(), RotatingFileHandler(BASE / "data/runner.log", maxBytes=2_000_000, backupCount=3)])
         from bridge import Bridge
         bridge = Bridge(BASE, config['bridge_token'])
         bridge.start()
@@ -270,5 +299,5 @@ if __name__ == "__main__":
         main()
     except Exception as error:
         # Never print HTTP bodies or task payloads containing private data.
-        print("Runner stopped:", str(error) if isinstance(error, (ValueError, RuntimeError)) else type(error).__name__)
-        sys.exit(1)
+        print("Runner stopped:", failure_message(error))
+        sys.exit(2 if isinstance(error, (InstanceBusy, PermissionError)) else 1)
