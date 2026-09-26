@@ -66,7 +66,7 @@ class Bridge:
                     return self.reply(401, {})
                 try:
                     size = int(self.headers.get('Content-Length', '0'))
-                    if not 0 < size <= 65536 or self.path != '/result':
+                    if not 0 < size <= 65536 or self.path not in ('/result', '/progress'):
                         return self.reply(400, {})
                     value = json.loads(self.rfile.read(size))
                     with bridge.lock:
@@ -74,7 +74,12 @@ class Bridge:
                         command = read(path) if path.exists() else None
                         if not command or value.get('id') != command['id']:
                             return self.reply(409, {'error': 'Command no longer active.'})
-                        save(bridge.base / 'data/browser-result.json', value)
+                        if self.path == '/progress':
+                            if value.get('step') not in ('opening', 'channel', 'dialog', 'file', 'details', 'next', 'visibility', 'processing', 'publish', 'confirmation'):
+                                return self.reply(400, {})
+                            save(bridge.base / 'data/browser-progress.json', {'id': command['id'], 'step': value['step']})
+                        else:
+                            save(bridge.base / 'data/browser-result.json', value)
                     self.reply(200, {'ok': True})
                 except (ValueError, KeyError):
                     self.reply(400, {})

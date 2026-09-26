@@ -30,8 +30,22 @@ async function api(action, body, query = '') {
   return data;
 }
 function toast(message){ const node=$('#toast');node.textContent=message;node.hidden=false;clearTimeout(toast.timer);toast.timer=setTimeout(()=>node.hidden=true,4500); }
-function date(value){ if(!value)return '—';const d=new Date(value.includes('T')?value:value.replace(' ','T')+'Z');return Number.isNaN(d.valueOf())?'—':d.toLocaleString('en-GB',{timeZone:'Asia/Colombo',year:'numeric',month:'short',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false})+' SL'; }
+function absoluteDate(value){ if(!value)return '—';const d=new Date(value.includes('T')?value:value.replace(' ','T')+'Z');return Number.isNaN(d.valueOf())?'—':d.toLocaleString('en-GB',{timeZone:'Asia/Colombo',year:'numeric',month:'short',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false})+' SL'; }
 // Colour carries meaning only: green done, blue working, amber needs you, red failed.
+function relativeTime(value){
+  const ms=new Date(value.includes('T')?value:value.replace(' ','T')+'Z').getTime();
+  const seconds=Math.round((Date.now()+serverOffset-ms)/1000),amount=Math.abs(seconds);
+  if(!Number.isFinite(seconds))return '';
+  if(amount<60)return seconds<0?'in less than a minute':'just now';
+  const size=amount<3600?60:amount<86400?3600:86400;
+  const n=Math.floor(amount/size),unit=size===60?'min':size===3600?'hr':'day';
+  const label=`${n} ${unit}${n===1?'':'s'}`;
+  return seconds<0?'in '+label:label+' ago';
+}
+function date(value){
+  if(!value)return '—';
+  return `<span class="timestamp">${absoluteDate(value)}<small data-relative="${esc(value)}">${relativeTime(value)}</small></span>`;
+}
 function badge(status){const s=String(status??'');const color=['published','connected','success','enabled','completed','downloaded'].includes(s)?'green':['running','editing','uploading','downloading','verifying','ready','info'].includes(s)?'blue':['needs_attention','paused','warning','stopping'].includes(s)?'amber':['failed','error','blocked','stalled'].includes(s)?'red':'';const label=s.replaceAll('_',' ');return `<span class="badge ${color}"><b></b>${esc(label.charAt(0).toUpperCase()+label.slice(1))}</span>`;}
 function empty(title, text, action='', symbol=icon('video')){return `<div class="empty"><span class="empty-symbol">${symbol}</span><h3>${esc(title)}</h3><p>${esc(text)}</p>${action}</div>`;}
 function stat(label,value,foot){return `<article class="kpi"><span class="kpi-label">${esc(label)}</span><strong class="kpi-value">${esc(value)}</strong><small>${foot}</small></article>`;}
@@ -98,7 +112,7 @@ async function pollLogs(){
   }catch(error){if($('#console-status'))$('#console-status').textContent='Reconnecting · '+error.message;}finally{logBusy=false;}
 }
 function paintLogs(){const node=$('#console-output');if(!node)return;const search=($('#log-search')?.value||'').toLowerCase();const level=$('#log-level')?.value||'';const filtered=logRows.filter(r=>(!level||r.level===level)&&`${r.message} ${r.source}`.toLowerCase().includes(search));node.innerHTML=filtered.length?filtered.map(r=>`<div class="console-line"><span class="console-time">${esc(slClock(r.created_at))}</span><span class="console-job">${r.job_id?'#'+esc(r.job_id):'—'}</span><span class="console-source">${esc(r.source)}</span><span class="console-level ${esc(r.level)}">${esc(r.level)}</span><span class="console-message">${esc(r.message)}</span></div>`).join(''):'<span class="console-empty">No matching events. New workspace events will appear here.</span>';if($('#autoscroll')?.checked)node.scrollTop=node.scrollHeight;}
-function downloadLogs(){const text=logRows.map(r=>`${date(r.created_at)} SL time\t${r.job_id||'system'}\t${r.source}\t${r.level}\t${r.message}`).join('\n');const url=URL.createObjectURL(new Blob([text],{type:'text/plain;charset=utf-8'}));const a=document.createElement('a');a.href=url;a.download='astra-console-'+new Date().toISOString().slice(0,10)+'.txt';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}
+function downloadLogs(){const text=logRows.map(r=>`${absoluteDate(r.created_at)}\t${r.job_id||'system'}\t${r.source}\t${r.level}\t${r.message}`).join('\n');const url=URL.createObjectURL(new Blob([text],{type:'text/plain;charset=utf-8'}));const a=document.createElement('a');a.href=url;a.download='astra-console-'+new Date().toISOString().slice(0,10)+'.txt';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}
 
 async function modal(type){
   if(!isAdmin)return;

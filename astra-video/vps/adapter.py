@@ -18,7 +18,7 @@ def progress(path, percent, message):
     save(path.parent / 'progress.json', {'progress': percent, 'message': message})
 
 
-def browser(action, **payload):
+def browser(action, progress_path=None, **payload):
     command = dict(payload, id=uuid.uuid4().hex, action=action)
     request = BASE / 'data/browser-command.json'
     response = BASE / 'data/browser-result.json'
@@ -27,7 +27,22 @@ def browser(action, **payload):
     response.unlink(missing_ok=True)
     save(request, command)
     deadline = time.monotonic() + 6500
+    last_step = None
+    steps = {'opening': (10, 'Opening YouTube Studio'), 'channel': (20, 'Checking destination channel'),
+             'dialog': (25, 'Opening the upload dialog'), 'file': (30, 'Selecting the edited video file'),
+             'details': (40, 'Setting the rewritten title and audience'), 'next': (50, 'Moving through upload details'),
+             'visibility': (60, 'Selecting Public visibility'), 'processing': (75, 'Waiting for YouTube processing'),
+             'publish': (80, 'Submitting Publish'), 'confirmation': (90, 'Waiting for publication confirmation')}
     while time.monotonic() < deadline:
+        status_path = BASE / 'data/browser-progress.json'
+        if progress_path and status_path.exists():
+            status = read(status_path)
+            step = status.get('step')
+            if status.get('id') == command['id'] and step in steps and step != last_step:
+                last_step = step
+                percent, message = steps[step]
+                progress(progress_path, percent, message)
+                print('Chrome upload: ' + message, flush=True)
         if response.exists():
             result = read(response)
             if result.get('id') == command['id']:
@@ -141,7 +156,9 @@ def upload(task, request):
     if ready['title'] != task['video']['title']:
         raise RuntimeError('Local title does not match the queued title.')
     progress(request, 15, 'Chrome is uploading the verified render to YouTube Studio.')
-    result = browser('upload', path=str(media), title=ready['title'],
+    print('Uploading file: ' + str(media), flush=True)
+    print('YouTube title: ' + ready['title'], flush=True)
+    result = browser('upload', progress_path=request, path=str(media), title=ready['title'],
                      destination=task['channel']['destination'])
     if not result.get('publication_confirmed') or not re.fullmatch(r'[A-Za-z0-9_-]{11}', result.get('youtube_id', '')):
         raise RuntimeError('YouTube publication could not be confirmed.')

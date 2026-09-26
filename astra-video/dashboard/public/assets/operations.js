@@ -61,6 +61,7 @@ function duration(until) {
   return `${String(h).padStart(2,'0')}<i>h</i> ${String(m).padStart(2,'0')}<i>m</i> ${String(s).padStart(2,'0')}<i>s</i>`;
 }
 function tickClocks(){
+  if(!tickClocks.updated||Date.now()-tickClocks.updated>30000){document.querySelectorAll('[data-relative]').forEach(n=>n.textContent=relativeTime(n.dataset.relative));tickClocks.updated=Date.now();}
   document.querySelectorAll('[data-countdown]').forEach(node=>{if(node.dataset.countdown)node.innerHTML=duration(node.dataset.countdown);});
   document.querySelectorAll('[data-sl-clock]').forEach(node=>node.textContent=new Date(Date.now()+serverOffset).toLocaleTimeString('en-GB',{timeZone:'Asia/Colombo'}));
 }
@@ -80,7 +81,7 @@ function agentNow(a,d){
   if(['running','stopping','stalled'].includes(a.state)&&d.active){
     const editing=isEditor&&a.state==='running';
     const minutes=Math.max(0,Math.floor((Date.now()+serverOffset-utcDate(d.active.started_at))/60000));
-    const main=a.state==='running'?(editing?'Editing…':a.progress+'%'):a.state==='stopping'?'Stopping…':'Needs attention';
+    const main=a.state==='running'?(editing?'Editing…':a.name==='uploader'?({10:'Opening Studio',20:'Checking channel',25:'Opening upload',30:'Selecting video',40:'Setting title',50:'Upload details',60:'Setting visibility',75:'Waiting for processing',80:'Publishing',90:'Confirming publication'}[a.progress]||'Waiting for Chrome'):a.progress+'%'):a.state==='stopping'?'Stopping…':'Needs attention';
     return `<div class="now"><strong>${main}</strong><small>Task #${d.active.id} · ${minutes} min elapsed</small><small>Heartbeat ${Number(d.active.heartbeat_age)}s ago</small>${editing?'':`<progress class="bar" value="${a.progress}" max="100"></progress>`}</div>`;
   }
   if(isEditor)return a.queued?`<div class="now"><strong>${a.queued} <i>queued</i></strong><small>Ready to edit</small></div>`:'<span class="muted-text">After the next download</span>';

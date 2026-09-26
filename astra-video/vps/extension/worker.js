@@ -137,6 +137,13 @@ async function finish(active, result) {
 
 async function execute(command) {
   let active = {id: command.id, action: command.action};
+  let step = 'opening';
+  const report = async name => {
+    step = name;
+    await chrome.storage.local.set({uploadStep: name, uploadStepAt: Date.now()});
+    try { await bridge('/progress', {id: command.id, step: name}); }
+    catch (error) { await chrome.storage.local.set({progressError: String(error.message)}); }
+  };
   await chrome.storage.local.set({active});
   try {
     if (!['fetch', 'upload'].includes(command.action)) throw new Error('Unknown command.');
@@ -145,7 +152,8 @@ async function execute(command) {
     const url = command.action === 'fetch'
       ? 'https://www.youtube.com/' + encodeURIComponent(command.handle) + '/shorts'
       : 'https://studio.youtube.com/channel/' + command.destination;
-    const tab = await chrome.tabs.create({url: 'about:blank', active: false});
+    if (command.action === 'upload') await report('opening');
+    const tab = await chrome.tabs.create({url: 'about:blank', active: command.action === 'upload'});
     active.tabId = tab.id;
     await chrome.storage.local.set({active});
     if (command.action === 'fetch') {
@@ -170,25 +178,34 @@ async function execute(command) {
       await finish(active, {ok: true, videos});
       return;
     }
+    await report('channel');
     await until(command, async () => (await inTab(tab.id, 'channel')) === command.destination);
+    await report('dialog');
     await until(command, () => inTab(tab.id, 'open-upload'));
     const target = {tabId: tab.id};
     const {root} = await chrome.debugger.sendCommand(target, 'DOM.getDocument', {depth: -1, pierce: true});
     const {nodeId} = await chrome.debugger.sendCommand(target, 'DOM.querySelector', {nodeId: root.nodeId, selector: 'input[type=file]'});
     if (!nodeId) throw new Error('Upload file input was not found.');
     await checkpoint(command);
+    await report('file');
     await chrome.debugger.sendCommand(target, 'DOM.setFileInputFiles', {nodeId, files: [command.path]});
+    await report('details');
     await until(command, () => inTab(tab.id, 'details', command.title), 300000);
+    await report('next');
     await until(command, async () => (await inTab(tab.id, 'next')) === 'visibility', 600000);
+    await report('visibility');
     await until(command, () => inTab(tab.id, 'public'));
+    await report('processing');
     await until(command, () => inTab(tab.id, 'publish-ready'), 5400000, 10000);
     await checkpoint(command);
+    await report('publish');
     await inTab(tab.id, 'publish');
     // SD processing can continue after Publish; only a publication receipt completes the task.
+    await report('confirmation');
     const youtube_id = await until(command, () => inTab(tab.id, 'confirmation'), 5400000, 10000);
     await finish(active, {ok: true, publication_confirmed: true, youtube_id});
   } catch (error) {
-    await finish(active, {ok: false, error: String(error.message).slice(0, 400)});
+    await finish(active, {ok: false, error: (step + ': ' + String(error.message)).slice(0, 400)});
   }
 }
 
