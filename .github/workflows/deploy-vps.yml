@@ -1,0 +1,83 @@
+name: Deploy Windows VPS
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'astra-video/vps/**'
+      - 'astra-video/deploy/deploy_vps.py'
+      - '.github/workflows/deploy-vps.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-vps-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: github.ref == 'refs/heads/main' && vars.VPS_DEPLOY_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    environment: windows-vps
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Build code-only release
+        run: |
+          python - <<'PY'
+          import importlib.util, pathlib, subprocess, zipfile
+          spec=importlib.util.spec_from_file_location('deploy','astra-video/deploy/deploy_vps.py')
+          module=importlib.util.module_from_spec(spec); spec.loader.exec_module(module)
+          root=pathlib.Path('astra-video/vps')
+          tracked=subprocess.check_output(['git','ls-files','-z','astra-video/vps'],text=True).split('\0')
+          with zipfile.ZipFile('vps-release.zip','w',zipfile.ZIP_DEFLATED) as archive:
+              for name in filter(None,tracked):
+                  path=pathlib.Path(name); relative=path.relative_to(root).as_posix()
+                  if module.allowed(relative):
+                      if path.suffix=='.py': compile(path.read_bytes(),relative,'exec')
+                      archive.write(path,relative)
+          PY
+      - name: Upload and apply release over SSH
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          VPS_PORT: ${{ secrets.VPS_SSH_PORT }}
+          VPS_KEY: ${{ secrets.VPS_SSH_KEY }}
+          VPS_KNOWN_HOSTS: ${{ secrets.VPS_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          : "${VPS_HOST:?Set VPS_HOST}" "${VPS_USER:?Set VPS_USER}" "${VPS_KEY:?Set VPS_SSH_KEY}" "${VPS_KNOWN_HOSTS:?Set VPS_KNOWN_HOSTS}"
+          VPS_PORT="${VPS_PORT:-22}"
+          [[ "$VPS_HOST" =~ ^[a-zA-Z0-9.-]+$ && "$VPS_USER" =~ ^[a-zA-Z0-9_.-]+$ && "$VPS_PORT" =~ ^[0-9]+$ ]]
+          umask 077
+          printf '%s\n' "$VPS_KEY" > "$RUNNER_TEMP/astra-key"
+          printf '%s\n' "$VPS_KNOWN_HOSTS" > "$RUNNER_TEMP/astra-hosts"
+          trap 'rm -f "$RUNNER_TEMP/astra-key" "$RUNNER_TEMP/astra-hosts"' EXIT
+          opts=(-i "$RUNNER_TEMP/astra-key" -o BatchMode=yes -o StrictHostKeyChecking=yes -o "UserKnownHostsFile=$RUNNER_TEMP/astra-hosts")
+          remote="$VPS_USER@$VPS_HOST"
+          prepare=$(python - <<'PY'
+          import base64
+          command="New-Item -ItemType Directory -Force -Path (Join-Path $env:USERPROFILE 'astra-incoming') | Out-Null"
+          print(base64.b64encode(command.encode('utf-16le')).decode())
+          PY
+          )
+          ssh "${opts[@]}" -p "$VPS_PORT" "$remote" "powershell.exe -NoProfile -NonInteractive -EncodedCommand $prepare"
+          scp "${opts[@]}" -P "$VPS_PORT" vps-release.zip "$remote:astra-incoming/release-$GITHUB_RUN_ID.zip"
+          scp "${opts[@]}" -P "$VPS_PORT" astra-video/deploy/deploy_vps.py "$remote:astra-incoming/deploy-$GITHUB_RUN_ID.py"
+          apply=$(python - <<'PY'
+          import base64,os
+          run=os.environ['GITHUB_RUN_ID']; revision=os.environ['GITHUB_SHA']
+          command=f"""$ErrorActionPreference='Stop'
+          $target='C:\\Astra\\ASTRA\\astra-video\\vps'
+          $runtime=(Get-Content -LiteralPath (Join-Path $target 'data\\python-path.txt') -Raw).Trim()
+          & $runtime (Join-Path $env:USERPROFILE 'astra-incoming\\deploy-{run}.py') --archive (Join-Path $env:USERPROFILE 'astra-incoming\\release-{run}.zip') --target $target --revision '{revision}'
+          exit $LASTEXITCODE
+          """
+          print(base64.b64encode(command.encode('utf-16le')).decode())
+          PY
+          )
+          ssh "${opts[@]}" -p "$VPS_PORT" "$remote" "powershell.exe -NoProfile -NonInteractive -EncodedCommand $apply"

@@ -14,6 +14,10 @@ if errorlevel 1 (
 )
 :run
 if exist STOP exit /b 0
+if exist DEPLOYING (
+  timeout /t 5 /nobreak >nul
+  goto run
+)
 "%ASTRA_RUNTIME%" runner.py
 if errorlevel 2 (
   echo Startup needs attention. Read the message above before starting again.

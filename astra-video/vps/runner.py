@@ -145,6 +145,7 @@ class Runner:
         self.data = directory / "data"
         self.journal = self.data / "active.json"
         self.stop_file = directory / "STOP"
+        self.deploy_file = directory / 'DEPLOYING'
         self.bridge = None
 
     def deliver(self, record):
@@ -246,7 +247,7 @@ class Runner:
             else:
                 self.deliver(record)
         LOG.info("Runner ready: %s", ", ".join(self.config["commands"]))
-        while not self.stop_file.exists():
+        while not self.stop_file.exists() and not self.deploy_file.exists():
             if self.bridge and not self.bridge.ready():
                 time.sleep(2)
                 continue
