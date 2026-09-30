@@ -43,7 +43,7 @@ const AGENT_INFO = {
   uploader: {name:'Upload', icon:'uploader', detail:'Up to 3 posts a day', run:'Upload now'}
 };
 const STATE_LABEL = {waiting:'Ready', offline:'Offline', paused:'Paused', running:'Running', stopping:'Stopping', stalled:'Stalled'};
-const operationPages = ['overview','jobs','schedules','library','errors'];
+const operationPages = ['overview','jobs','schedules','library','uploaded','errors'];
 const utcDate = value => new Date(value && (value.includes('T') ? value : value.replace(' ','T')+'Z'));
 const slClock = value => utcDate(value).toLocaleTimeString('en-GB',{timeZone:'Asia/Colombo',hour:'2-digit',minute:'2-digit',second:'2-digit'});
 const slDay = value => utcDate(value).toLocaleDateString('en-GB',{timeZone:'Asia/Colombo',day:'numeric',month:'short'});
@@ -117,7 +117,7 @@ function statusCard(d){
 
 function stageTotals(d){
   const totals=d.totals||{};
-  return `<div class="kpi-grid stage-totals">${[['fetched','Fetched videos','Downloads completed'],['edited','Edited videos','Edits completed'],['uploaded','Uploaded videos','Publication confirmed']].map(([stage,label,help])=>`<a class="kpi" href="#library" data-total-stage="${stage}"><span class="kpi-label">${label}</span><strong class="kpi-value">${Number(totals[stage]||0).toLocaleString('en-GB')}</strong><small>${help} · all time</small></a>`).join('')}</div>`;
+  return `<div class="kpi-grid stage-totals">${[['fetched','Fetched videos','Downloads completed'],['edited','Edited videos','Edits completed'],['uploaded','Uploaded videos','Received by YouTube']].map(([stage,label,help])=>`<a class="kpi" href="#library" data-total-stage="${stage}"><span class="kpi-label">${label}</span><strong class="kpi-value">${Number(totals[stage]||0).toLocaleString('en-GB')}</strong><small>${help} · all time</small></a>`).join('')}</div>`;
 }
 
 function kpis(d){
@@ -145,8 +145,8 @@ function videoCards(videos){
   const step=(ok,label,stamp)=>`<td class="step-cell" data-label="${label}"><div class="stage-detail"><span class="step ${ok?'done':''}" title="${label}: ${ok?'done':'pending'}">${ok?icon('check'):''}</span><small>${ok?(stamp?date(stamp):'Complete · time not recorded'):'Pending'}</small></div></td>`;
   return `<div class="table-wrap"><table class="data videos-table"><thead><tr><th>Video</th><th class="center">Fetched (SL)</th><th class="center">Title verified (SL)</th><th class="center">Edited (SL)</th><th class="center">Uploaded (SL)</th><th>Status</th><th>Result</th></tr></thead><tbody>${videos.map(v=>{
     const link=v.published_url&&/^https:\/\/www\.youtube\.com\//.test(v.published_url)?` <a class="text-link" href="${esc(v.published_url)}" target="_blank" rel="noopener">View${icon('external')}</a>`:'';
-    const result=v.published_at?'Posted '+date(v.published_at):v.edited_at?'Edited '+date(v.edited_at)+(v.blocked_reason?'':' · waiting for a slot'):'<span class="muted-text">Not posted</span>';
-    return `<tr><td class="cell-main" data-label="Video"><div class="cell-title">${esc(v.title||v.original_title||v.source_video_id)}</div><div class="cell-sub">${esc(v.channel_name)} · ${esc(v.source_video_id)}</div>${v.blocked_reason?`<div class="reason red">${icon('alert')}<span>Cannot post: ${esc(v.blocked_reason)}</span></div>`:''}</td>${step(v.downloaded_at,'Fetched',v.downloaded_at)}${step(Number(v.title_ready),'Title verified',v.edited_at)}${step(v.edited_at,'Edited',v.edited_at)}${step(v.published_at,'Uploaded / published',v.published_at)}<td data-label="Status">${badge(v.status)}</td><td data-label="Result" class="result-cell"><div>${result}${link}<small class="cell-note">Last activity ${date(v.activity_at||v.updated_at)}</small></div></td></tr>`;
+    const result=v.status==='processing'?'Uploaded � YouTube processing (publication not yet verified)':v.published_at?'Posted '+date(v.published_at):v.edited_at?'Edited '+date(v.edited_at)+(v.blocked_reason?'':' · waiting for a slot'):'<span class="muted-text">Not posted</span>';
+    return `<tr><td class="cell-main" data-label="Video"><div class="cell-title">${esc(v.title||v.original_title||v.source_video_id)}</div><div class="cell-sub">${esc(v.channel_name)} · ${esc(v.source_video_id)}</div>${v.blocked_reason?`<div class="reason red">${icon('alert')}<span>Cannot post: ${esc(v.blocked_reason)}</span></div>`:''}</td>${step(v.downloaded_at,'Fetched',v.downloaded_at)}${step(Number(v.title_ready),'Title verified',v.edited_at)}${step(v.edited_at,'Edited',v.edited_at)}${step(v.published_at||v.status==='processing','Uploaded',v.published_at||v.finished_at)}<td data-label="Status">${badge(v.status)}</td><td data-label="Result" class="result-cell"><div>${result}${link}<small class="cell-note">Last activity ${date(v.activity_at||v.updated_at)}</small></div></td></tr>`;
   }).join('')}</tbody></table></div>`;
 }
 
@@ -173,6 +173,7 @@ async function renderOperations(view){
     return `${statusCard(d)}${kpis(d)}${stageTotals(d)}${panel('Agents','One task runs at a time · Sri Lanka time',agentsTable(d))}${panel('Queue','Running and waiting tasks first',taskCards(recent.slice(0,5),true),`<a class="text-link" href="#jobs">View all${icon('arrow')}</a>`)}${panel('Recent videos','A check means the stage is complete',videoCards(v.items.slice(0,5)),`<a class="text-link" href="#library">View all${icon('arrow')}</a>`)}`;
   }
   if(view==='jobs')return controlBar(d)+await renderBrowse('jobs');
+  if(view==='uploaded')return await renderBrowse('uploaded');
   if(view==='library')return await renderBrowse('library')+panel('Latest channel check','The last five videos the fetch agent looked at',scanCards(d.latest_scan||[]));
   if(view==='schedules'){
     const rows=d.agents.map(a=>{
@@ -218,5 +219,5 @@ document.addEventListener('click',async event=>{
   }catch(error){toast(error.message);button.disabled=false;}
 });
 setInterval(()=>{
-  if(operationPages.includes(page)&&!['jobs','library','errors'].includes(page)&&!document.hidden&&!$('#modal').open&&!$('.sidebar').classList.contains('open')&&!content.contains(document.activeElement))render(true);
+  if(operationPages.includes(page)&&!['jobs','library','uploaded','errors'].includes(page)&&!document.hidden&&!$('#modal').open&&!$('.sidebar').classList.contains('open')&&!content.contains(document.activeElement))render(true);
 },10000);

@@ -7,7 +7,7 @@ function browse_items(PDO $pdo, string $kind, array $query): array {
     $allowed=$videos?['all','fetched','edited','uploaded']:['all','fetch','editor','uploader'];
     if (!in_array($stage,$allowed,true)) throw new InvalidArgumentException('Invalid stage filter.');
     $activity=$videos?'j.updated_at':'COALESCE(t.finished_at,t.started_at,t.created_at)';
-    $stamp=$videos?(['fetched'=>'v.downloaded_at','edited'=>'v.edited_at','uploaded'=>'v.published_at'][$stage]??'v.downloaded_at'):$activity;
+    $stamp=$videos?(['fetched'=>'v.downloaded_at','edited'=>'v.edited_at','uploaded'=>"COALESCE(v.published_at,CASE WHEN j.status='processing' THEN j.finished_at END)"][$stage]??'v.downloaded_at'):$activity;
     $where=[];$values=[];
     if ($videos) {
         $from='jobs j JOIN video_progress v ON v.job_id=j.id JOIN channels c ON c.id=j.channel_id';

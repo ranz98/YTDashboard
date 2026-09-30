@@ -83,10 +83,22 @@ function page(action, value) {
   }
   if (action === 'confirmation') {
     const dialog = select('ytcp-video-share-dialog');
-    if (!dialog || !/video published/i.test(dialog.innerText)) return null;
+    if (!dialog) return null;
+    const published = /video published/i.test(dialog.innerText);
+    const processing = /video processing/i.test(dialog.innerText) && /standard definition/i.test(dialog.innerText);
+    if (!published && !processing) return null;
     const links = [...dialog.querySelectorAll('a[href]')].map(a => a.href).join(' ');
     const id = (links + ' ' + dialog.innerText).match(/(?:youtu\.be\/|youtube\.com\/watch\?v=)([\w-]{11})/)?.[1];
-    return id || null;
+    if (!id) return null;
+    const close = [...dialog.querySelectorAll('ytcp-button,button')].find(e => visible(e) && /^close$/i.test(e.innerText.trim()));
+    if (!close) return null;
+    return {youtube_id: id, publication_confirmed: published, upload_confirmed: true};
+  }
+  if (action === 'close-receipt') {
+    const dialog = select('ytcp-video-share-dialog');
+    const close = dialog && [...dialog.querySelectorAll('ytcp-button,button')].find(e => visible(e) && /^close$/i.test(e.innerText.trim()));
+    if (close) close.click();
+    return Boolean(close);
   }
   throw new Error('Unknown tab operation.');
 }
@@ -113,6 +125,10 @@ async function until(command, operation, milliseconds = 120000, interval = 3000)
 }
 
 async function finish(active, result) {
+  if (result.upload_confirmed) {
+    await chrome.storage.local.set({receipt: {id: active.id, ...result}});
+    try { await inTab(active.tabId, 'close-receipt'); } catch (_) {}
+  }
   const reviewUpload = active.action === 'upload' && !result.ok;
   if (active.tabId && reviewUpload) {
     // Leave uncertain uploads visible for reconciliation; never submit them again.
@@ -200,10 +216,10 @@ async function execute(command) {
     await checkpoint(command);
     await report('publish');
     await inTab(tab.id, 'publish');
-    // SD processing can continue after Publish; only a publication receipt completes the task.
+    // YouTube owns processing after its saved receipt; the browser can close.
     await report('confirmation');
-    const youtube_id = await until(command, () => inTab(tab.id, 'confirmation'), 5400000, 10000);
-    await finish(active, {ok: true, publication_confirmed: true, youtube_id});
+    const receipt = await until(command, () => inTab(tab.id, 'confirmation'), 5400000, 10000);
+    await finish(active, {ok: true, ...receipt});
   } catch (error) {
     await finish(active, {ok: false, error: (step + ': ' + String(error.message)).slice(0, 400)});
   }
@@ -218,6 +234,11 @@ async function poll() {
     const {active, receipt} = await chrome.storage.local.get(['active', 'receipt']);
     if (receipt?.id === command.id) { await bridge('/result', receipt); return; }
     if (active) {
+      if (active.id === command.id && active.action === 'upload' && active.tabId) {
+        let saved;
+        try { saved = await inTab(active.tabId, 'confirmation'); } catch (_) {}
+        if (saved) { await finish(active, {ok: true, ...saved}); return; }
+      }
       // Never repeat a browser action after a service worker restart.
       await finish(active, {ok: false, error: 'Chrome restarted during a task. Review its outcome before retrying.'});
       return;

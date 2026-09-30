@@ -85,7 +85,7 @@ function claim_task(PDO $pdo, string $worker, array $capabilities, ?string $clai
     foreach ($q->fetchAll() as $task) {
         if (!$task['channel_enabled'] || !in_array($task['agent'],$capabilities,true)) continue;
         if ($task['agent']==='uploader') {
-            $posted=(int)$pdo->query("SELECT COUNT(*) FROM video_progress WHERE published_at >= DATE(DATE_ADD(UTC_TIMESTAMP(),INTERVAL 330 MINUTE))-INTERVAL 330 MINUTE")->fetchColumn();
+            $posted=(int)$pdo->query("SELECT COUNT(*) FROM jobs WHERE status IN ('processing','published') AND finished_at >= DATE(DATE_ADD(UTC_TIMESTAMP(),INTERVAL 330 MINUTE))-INTERVAL 330 MINUTE")->fetchColumn();
             if ($posted>=3) continue;
             $check=$pdo->prepare("SELECT v.job_id FROM video_progress v JOIN jobs j ON j.id=v.job_id WHERE v.job_id=? AND v.edited_at IS NOT NULL AND v.title_ready=1 AND v.published_at IS NULL AND v.blocked_reason IS NULL AND j.status='ready' FOR UPDATE"); $check->execute([$task['job_id']]);
             if (!$check->fetchColumn()) {
@@ -160,9 +160,10 @@ function complete_task(PDO $pdo, string $worker, array $body): void {
         $q=$pdo->prepare("UPDATE jobs SET status='ready',stage='uploader',progress=100,error=NULL,title=COALESCE(?,title) WHERE id=?");$q->execute([isset($body['title'])?mb_substr((string)$body['title'],0,255):null,$job]);
     } elseif ($state==='completed' && $task['agent']==='uploader') {
         $youtubeId=(string)($body['youtube_id']??'');
-        if (empty($body['publication_confirmed']) || !preg_match('/^[A-Za-z0-9_-]{11}$/',$youtubeId)) throw new InvalidArgumentException('YouTube publication must be confirmed with a video ID.');
-        $q=$pdo->prepare("UPDATE jobs SET status='published',progress=100,published_url=?,finished_at=UTC_TIMESTAMP(),error=NULL WHERE id=?");$q->execute(['https://www.youtube.com/watch?v='.$youtubeId,$job]);
-        $q=$pdo->prepare('UPDATE video_progress SET published_at=UTC_TIMESTAMP() WHERE job_id=?');$q->execute([$job]);
+        if ((empty($body['publication_confirmed']) && empty($body['upload_confirmed'])) || !preg_match('/^[A-Za-z0-9_-]{11}$/',$youtubeId)) throw new InvalidArgumentException('YouTube publication must be confirmed with a video ID.');
+        $published=!empty($body['publication_confirmed']);
+        $q=$pdo->prepare("UPDATE jobs SET status=?,progress=100,published_url=?,finished_at=UTC_TIMESTAMP(),error=NULL WHERE id=?");$q->execute([$published?'published':'processing','https://www.youtube.com/watch?v='.$youtubeId,$job]);
+        if ($published) {$q=$pdo->prepare('UPDATE video_progress SET published_at=UTC_TIMESTAMP() WHERE job_id=?');$q->execute([$job]);}
     } elseif ($job) {
         // An uncertain upload must be reconciled, never retried blindly.
         if ($task['agent']==='uploader') $state='needs_attention';
@@ -176,7 +177,7 @@ function complete_task(PDO $pdo, string $worker, array $body): void {
 }
 
 function operations_snapshot(PDO $pdo): array {
-    $totals=$pdo->query('SELECT COUNT(downloaded_at) fetched,COUNT(edited_at) edited,COUNT(published_at) uploaded FROM video_progress')->fetch();
+    $totals=$pdo->query('SELECT COUNT(downloaded_at) fetched,COUNT(edited_at) edited,SUM(j.status IN ("processing","published")) uploaded FROM video_progress v JOIN jobs j ON j.id=v.job_id')->fetch();
     $totals=array_map('intval',$totals);
     $gate=$pdo->query('SELECT * FROM execution_gate WHERE id=1')->fetch();
     $agents=$pdo->query('SELECT * FROM agents ORDER BY FIELD(name,\'fetch\',\'editor\',\'uploader\')')->fetchAll();
@@ -249,7 +250,7 @@ function handle_operations(PDO $pdo, string $action, array $body): array {
             if ($immediate) {
                 if ($gate['paused']) throw new InvalidArgumentException('Start the pipeline before uploading now.');
                 if (!(int)$pdo->query("SELECT enabled FROM agents WHERE name='uploader'")->fetchColumn()) throw new InvalidArgumentException('Enable the upload agent first.');
-                $posted=(int)$pdo->query("SELECT COUNT(*) FROM video_progress WHERE published_at >= DATE(DATE_ADD(UTC_TIMESTAMP(),INTERVAL 330 MINUTE))-INTERVAL 330 MINUTE")->fetchColumn();
+                $posted=(int)$pdo->query("SELECT COUNT(*) FROM jobs WHERE status IN ('processing','published') AND finished_at >= DATE(DATE_ADD(UTC_TIMESTAMP(),INTERVAL 330 MINUTE))-INTERVAL 330 MINUTE")->fetchColumn();
                 if ($posted>=3) throw new InvalidArgumentException('Today’s limit of three posts has been reached (Sri Lanka time).');
             }
             if (upload_pending($pdo)) throw new InvalidArgumentException('An upload is already queued or running. View Upload tasks in the Queue.');

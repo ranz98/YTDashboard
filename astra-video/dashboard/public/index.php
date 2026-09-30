@@ -10,7 +10,7 @@ if($isAdmin) $_SESSION['last_seen']=time();
 $csrf=$_SESSION['csrf']; $email=$isAdmin?$_SESSION['email']:'';session_write_close();
 ?>
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="csrf-token" content="<?=h($csrf)?>"><meta name="access-mode" content="<?=$isAdmin?'admin':'public'?>"><meta name="robots" content="noindex,nofollow"><meta name="theme-color" content="#0b0e14"><title>Overview · Astra Video</title><link rel="stylesheet" href="assets/app.css?v=8"><script defer src="assets/operations.js?v=11"></script><script defer src="assets/browse.js?v=3"></script><script defer src="assets/app.js?v=6"></script></head>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="csrf-token" content="<?=h($csrf)?>"><meta name="access-mode" content="<?=$isAdmin?'admin':'public'?>"><meta name="robots" content="noindex,nofollow"><meta name="theme-color" content="#0b0e14"><title>Overview · Astra Video</title><link rel="stylesheet" href="assets/app.css?v=8"><script defer src="assets/operations.js?v=12"></script><script defer src="assets/browse.js?v=4"></script><script defer src="assets/app.js?v=7"></script></head>
 <body>
 <aside class="sidebar">
   <a class="brand" href="#overview"><span class="brand-mark">A</span><span class="brand-name">Astra<small>Video automation</small></span></a>
@@ -19,6 +19,7 @@ $csrf=$_SESSION['csrf']; $email=$isAdmin?$_SESSION['email']:'';session_write_clo
     <a href="#overview" data-page="overview"><i data-icon="overview"></i><span>Overview</span></a>
     <a href="#jobs" data-page="jobs"><i data-icon="queue"></i><span>Queue</span><b id="nav-queue" hidden>0</b></a>
     <a href="#library" data-page="library"><i data-icon="video"></i><span>Videos</span></a>
+    <a href="#uploaded" data-page="uploaded"><i data-icon="video"></i><span>Uploaded</span></a>
     <a href="#errors" data-page="errors"><i data-icon="alert"></i><span>Errors</span><b id="nav-errors" class="is-alert" hidden>0</b></a>
     <p class="nav-label">Setup</p>
     <a href="#channels" data-page="channels"><i data-icon="channels"></i><span>Channels</span></a>

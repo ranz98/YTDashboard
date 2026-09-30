@@ -1,7 +1,8 @@
 'use strict';
 const browseFilters={
+  uploaded:{stage:'uploaded',range:'all',from:'',to:'',sort:'activity'},
   library:{stage:'all',range:'all',from:'',to:'',sort:'activity'},
-  jobs:{stage:'all',state:'all',range:'all',from:'',to:'',sort:'activity'}
+  jobs:{stage:page==='uploaded'?'uploaded':'all',state:'all',range:'all',from:'',to:'',sort:'activity'}
 };
 let browseRows=[],browseTotal=0,browseMore=false,browseLoading=false,browseGeneration=0,browseOffset=0;
 let errorSnapshot=null,showDismissed=false;
@@ -32,15 +33,15 @@ function dismissedErrors(){try{return new Set(JSON.parse(localStorage.getItem(di
 const errorKey=(kind,row)=>`${kind}:${row.id}:${row.state||row.level}:${row.finished_at||row.started_at||row.created_at||''}`;
 function choices(values,selected){return values.map(([value,label])=>`<option value="${value}" ${selected===value?'selected':''}>${label}</option>`).join('');}
 function browseControls(view){
-  const f=browseFilters[view],video=view==='library';
-  const tabs=video?[['all','All videos'],['fetched','Fetched'],['edited','Edited'],['uploaded','Uploaded']]:[['all','All agents'],['fetch','Fetch'],['editor','Edit'],['uploader','Upload']];
-  return `<div class="browse-controls"><div class="browse-tabs" role="group" aria-label="${video?'Video stage':'Queue agent'}">${tabs.map(([value,label])=>`<button class="filter-chip ${f.stage===value?'selected':''}" data-browse-stage="${value}" aria-pressed="${f.stage===value}">${label}</button>`).join('')}</div><div class="browse-fields"><label>Date range<select data-browse-field="range">${choices([['all','All time'],['today','Today'],['yesterday','Yesterday'],['week','This week'],['month','This month'],['custom','Choose dates']],f.range)}</select></label>${f.range==='custom'?`<label>From (Sri Lanka)<input type="date" data-browse-field="from" value="${esc(f.from)}"></label><label>To (Sri Lanka)<input type="date" data-browse-field="to" value="${esc(f.to)}"></label>`:''}${video?'':`<label>Task status<select data-browse-field="state">${choices(['all','queued','running','completed','failed','skipped','blocked','cancelled','needs_attention'].map(x=>[x,x==='all'?'All statuses':x.replaceAll('_',' ')]),f.state)}</select></label>`}<label>Sort by<select data-browse-field="sort">${choices([['activity','Recent activity'],['latest','Latest added'],['oldest','Oldest added']],f.sort)}</select></label><button class="button small" data-browse-reset>Reset filters</button></div><p class="footnote">${video?'Tabs include every video that completed that stage. Uploaded means publication confirmed. Dates match the selected stage; All videos uses the fetched date.':'Dates match the task’s latest activity: finished, started, or created time.'} This week starts Monday. All times are Asia/Colombo (UTC+05:30).</p></div>`;
+  const f=browseFilters[view],video=['library','uploaded'].includes(view);
+  const tabs=view==='uploaded'?[['uploaded','Uploaded']]:video?[['all','All videos'],['fetched','Fetched'],['edited','Edited'],['uploaded','Uploaded']]:[['all','All agents'],['fetch','Fetch'],['editor','Edit'],['uploader','Upload']];
+  return `<div class="browse-controls"><div class="browse-tabs" role="group" aria-label="${video?'Video stage':'Queue agent'}">${tabs.map(([value,label])=>`<button class="filter-chip ${f.stage===value?'selected':''}" data-browse-stage="${value}" aria-pressed="${f.stage===value}">${label}</button>`).join('')}</div><div class="browse-fields"><label>Date range<select data-browse-field="range">${choices([['all','All time'],['today','Today'],['yesterday','Yesterday'],['week','This week'],['month','This month'],['custom','Choose dates']],f.range)}</select></label>${f.range==='custom'?`<label>From (Sri Lanka)<input type="date" data-browse-field="from" value="${esc(f.from)}"></label><label>To (Sri Lanka)<input type="date" data-browse-field="to" value="${esc(f.to)}"></label>`:''}${video?'':`<label>Task status<select data-browse-field="state">${choices(['all','queued','running','completed','failed','skipped','blocked','cancelled','needs_attention'].map(x=>[x,x==='all'?'All statuses':x.replaceAll('_',' ')]),f.state)}</select></label>`}<label>Sort by<select data-browse-field="sort">${choices([['activity','Recent activity'],['latest','Latest added'],['oldest','Oldest added']],f.sort)}</select></label><button class="button small" data-browse-reset>Reset filters</button></div><p class="footnote">${video?'Tabs include every video that completed that stage. Uploaded includes saved processing receipts; Processing does not mean Public. Dates match the selected stage; All videos uses the fetched date.':'Dates match the task’s latest activity: finished, started, or created time.'} This week starts Monday. All times are Asia/Colombo (UTC+05:30).</p></div>`;
 }
 async function browseFetch(view,offset){
   const f=browseFilters[view];
-  return api(view==='library'?'video_list':'task_list',null,'&'+new URLSearchParams({...f,offset}));
+  return api(['library','uploaded'].includes(view)?'video_list':'task_list',null,'&'+new URLSearchParams({...f,offset}));
 }
-function browseTable(view){return browseRows.length?(view==='library'?videoCards(browseRows):taskCards(browseRows)):empty('No matches for these filters','Choose a wider date range or another stage.','','');}
+function browseTable(view){return browseRows.length?(['library','uploaded'].includes(view)?videoCards(browseRows):taskCards(browseRows)):empty('No matches for these filters','Choose a wider date range or another stage.','','');}
 function browseFooter(){return `<span>${browseRows.length} of ${browseTotal} shown</span>${browseMore?'<button class="button small" data-browse-more>Load 100 more</button>':'<span>End of results</span>'}`;}
 async function renderBrowse(view){
   const generation=++browseGeneration;browseLoading=false;
@@ -49,7 +50,7 @@ async function renderBrowse(view){
   const result=await browseFetch(view,0);
   if(generation!==browseGeneration)return '';
   browseRows=result.items;browseOffset=result.items.length;browseTotal=result.total;browseMore=result.has_more;
-  return browseControls(view)+panel(view==='library'?'Videos':'Execution queue','Scroll inside the list. Load more for older results. Refresh to see new activity.',`<div class="browse-scroll" id="browse-list" tabindex="0" aria-label="${view==='library'?'Videos':'Tasks'} — scrollable results">${browseTable(view)}</div><div class="browse-footer" id="browse-footer">${browseFooter()}</div>`);
+  return browseControls(view)+panel(['library','uploaded'].includes(view)?'Videos':'Execution queue','Scroll inside the list. Load more for older results. Refresh to see new activity.',`<div class="browse-scroll" id="browse-list" tabindex="0" aria-label="${['library','uploaded'].includes(view)?'Videos':'Tasks'} — scrollable results">${browseTable(view)}</div><div class="browse-footer" id="browse-footer">${browseFooter()}</div>`);
 }
 function renderErrorReview(e){
   errorSnapshot=e;
@@ -69,7 +70,7 @@ document.addEventListener('click',async event=>{
   if(total){Object.assign(browseFilters.library,{stage:total.dataset.totalStage,range:'all',from:'',to:''});return;}
   const stage=event.target.closest('[data-browse-stage]');
   if(stage&&browseFilters[page]){browseFilters[page].stage=stage.dataset.browseStage;await render();return;}
-  if(event.target.closest('[data-browse-reset]')&&browseFilters[page]){Object.assign(browseFilters[page],{stage:'all',state:'all',range:'all',from:'',to:'',sort:'activity'});await render();return;}
+  if(event.target.closest('[data-browse-reset]')&&browseFilters[page]){Object.assign(browseFilters[page],{stage:page==='uploaded'?'uploaded':'all',state:'all',range:'all',from:'',to:'',sort:'activity'});await render();return;}
   const more=event.target.closest('[data-browse-more]');
   if(more&&!browseLoading){
     const view=page,generation=browseGeneration;browseLoading=true;more.disabled=true;

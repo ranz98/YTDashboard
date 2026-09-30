@@ -9,6 +9,7 @@ let page = '', channels = [], logRows = [], logCursor = 0, logJob = '', logPause
 const pages = {
   overview:['Overview','What is running now and what happens next.',null],
   jobs:['Queue','Every fetch, edit and upload task, one at a time.',null],
+  uploaded:['Uploaded','Videos received by YouTube, including processing uploads.',null],
   library:['Videos','Each video and the stages it has completed.',null],
   channels:['Channels','Source channels to follow and where videos go.','+ Add channel'],
   schedules:['Schedule','Daily fetch and post times in Sri Lanka time.',null],

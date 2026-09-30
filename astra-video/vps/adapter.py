@@ -160,10 +160,10 @@ def upload(task, request):
     print('YouTube title: ' + ready['title'], flush=True)
     result = browser('upload', progress_path=request, path=str(media), title=ready['title'],
                      destination=task['channel']['destination'])
-    if not result.get('publication_confirmed') or not re.fullmatch(r'[A-Za-z0-9_-]{11}', result.get('youtube_id', '')):
+    if not (result.get('publication_confirmed') or result.get('upload_confirmed')) or not re.fullmatch(r'[A-Za-z0-9_-]{11}', result.get('youtube_id', '')):
         raise RuntimeError('YouTube publication could not be confirmed.')
-    save(folder / 'published.json', result)
-    return {'state': 'completed', 'publication_confirmed': True, 'youtube_id': result['youtube_id']}
+    save(folder / ('published.json' if result.get('publication_confirmed') else 'uploaded.json'), result)
+    return {'state': 'completed', 'publication_confirmed': bool(result.get('publication_confirmed')), 'upload_confirmed': True, 'youtube_id': result['youtube_id']}
 
 
 def main():

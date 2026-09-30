@@ -4,7 +4,7 @@ const vm = require('node:vm');
 const path = require('node:path');
 const source = fs.readFileSync(path.join(__dirname, '../vps/extension/worker.js'), 'utf8');
 
-function environment(command) {
+function environment(command, published = true) {
   const state = {token: 'a'.repeat(64)}, results = [], actions = [], removed = [], rules = [];
   const listener = {addListener() {}};
   const context = vm.createContext({
@@ -34,7 +34,7 @@ function environment(command) {
         actions.push(args[0]);
         const values = {channel: command.destination, 'open-upload': true, details: true,
           next: 'visibility', public: true, 'publish-ready': true, publish: true,
-          confirmation: 'abcdefghijk', scan: Array.from({length: 5}, (_, i) => ({id: 'abcdefghij' + i, title: 'Example'}))};
+          confirmation: {youtube_id:'abcdefghijk', upload_confirmed:true, publication_confirmed:published}, scan: Array.from({length: 5}, (_, i) => ({id: 'abcdefghij' + i, title: 'Example'}))};
         return [{result: values[args[0]]}];
       }}
     }
@@ -55,11 +55,18 @@ function environment(command) {
   assert.equal(env.actions.filter(action => action === 'DOM.setFileInputFiles').length, 1);
 
   env = environment(command);
-  env.state.active = {id: 'one', tabId: 10, action: 'upload'};
+  env.state.active = {id: 'old', tabId: 10, action: 'upload'};
   await vm.runInContext('poll()', env.context);
   assert.equal(env.results[0].ok, false);
   assert.equal(env.actions.length, 0);
   assert.deepEqual(env.removed, [], 'Uncertain upload stays open for review');
+
+  env = environment(command, false);
+  await vm.runInContext('poll()', env.context);
+  assert.equal(env.results[0].upload_confirmed, true);
+  assert.equal(env.results[0].publication_confirmed, false);
+  assert.ok(env.actions.includes('close-receipt'));
+  assert.deepEqual(env.removed, [10]);
 
   env = environment({...command, cancel: true});
   await vm.runInContext('poll()', env.context);
@@ -74,5 +81,18 @@ function environment(command) {
   assert.deepEqual(Array.from(env.rules[0].addRules[0].condition.resourceTypes), ['image', 'media']);
   assert.ok(env.actions.indexOf('rules') < env.actions.indexOf('navigate'));
   assert.deepEqual(Array.from(env.rules.at(-1).removeRuleIds), [1]);
+  let clicked = 0;
+  const close = {innerText:'Close',getClientRects:()=>[1],getAttribute:()=>null,click:()=>clicked++};
+  const dialog = {innerText:'Video processing. The standard definition (SD) version needs to finish.',getClientRects:()=>[1],getAttribute:()=>null,
+    querySelectorAll:selector=>selector==='a[href]'?[{href:'https://youtu.be/abcdefghijk'}]:[close]};
+  env.context.document = {querySelectorAll:()=>[dialog]};
+  const receipt = vm.runInContext("page('confirmation')",env.context);
+  assert.equal(receipt.upload_confirmed,true);
+  assert.equal(receipt.publication_confirmed,false);
+  assert.equal(clicked,0,'Persist receipt before closing');
+  vm.runInContext("page('close-receipt')",env.context);
+  assert.equal(clicked,1);
+  dialog.querySelectorAll=selector=>selector==='a[href]'?[]:[close];
+  assert.equal(vm.runInContext("page('confirmation')",env.context),null,'No receipt without video ID');
   console.log('Extension checks passed: upload order, receipt replay, restart, cancellation, five-video scan.');
 })().catch(error => { console.error(error); process.exit(1); });
