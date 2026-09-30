@@ -2,7 +2,7 @@
 const browseFilters={
   uploaded:{stage:'uploaded',range:'all',from:'',to:'',sort:'activity'},
   library:{stage:'all',range:'all',from:'',to:'',sort:'activity'},
-  jobs:{stage:page==='uploaded'?'uploaded':'all',state:'all',range:'all',from:'',to:'',sort:'activity'}
+  jobs:{stage:'all',state:'all',range:'all',from:'',to:'',sort:'activity'}
 };
 let browseRows=[],browseTotal=0,browseMore=false,browseLoading=false,browseGeneration=0,browseOffset=0;
 let errorSnapshot=null,showDismissed=false;
