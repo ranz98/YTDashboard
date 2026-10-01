@@ -32,7 +32,7 @@ def browser(action, progress_path=None, **payload):
              'dialog': (25, 'Opening the upload dialog'), 'file': (30, 'Selecting the edited video file'),
              'details': (40, 'Setting the rewritten title and audience'), 'next': (50, 'Moving through upload details'),
              'visibility': (60, 'Selecting Public visibility'), 'processing': (75, 'Waiting for YouTube processing'),
-             'publish': (80, 'Submitting Publish'), 'confirmation': (90, 'Waiting for publication confirmation')}
+             'publish': (80, 'Submitting Publish'), 'confirmation': (90, 'Waiting for YouTube upload receipt')}
     while time.monotonic() < deadline:
         status_path = BASE / 'data/browser-progress.json'
         if progress_path and status_path.exists():
@@ -78,6 +78,14 @@ def folder_for(task, video_id):
 
 def fetch(task, request):
     progress(request, 5, 'Chrome is checking the latest five Shorts.')
+    publications = []
+    if task.get('check_publications'):
+        for section in ('shorts', 'videos'):
+            try:
+                publications.extend(browser('fetch', destination=task['channel']['destination'], section=section)['videos'])
+            except RuntimeError as error:
+                print('Publication check deferred: ' + str(error), flush=True)
+                break
     scan = browser('fetch', handle=task['channel']['handle'])['videos']
     if not isinstance(scan, list) or len(scan) > 5:
         raise ValueError('Invalid channel scan.')
@@ -111,7 +119,7 @@ def fetch(task, request):
             videos.append(dict(item, downloaded=True))
         except (subprocess.CalledProcessError, RuntimeError, FileNotFoundError):
             videos.append(dict(item, downloaded=False, reason='Download verification failed; inspect the VPS log.'))
-    return {'state': 'completed', 'videos': videos}
+    return {'state': 'completed', 'videos': videos, 'publications': publications}
 
 
 def edit(task, request):
@@ -160,10 +168,10 @@ def upload(task, request):
     print('YouTube title: ' + ready['title'], flush=True)
     result = browser('upload', progress_path=request, path=str(media), title=ready['title'],
                      destination=task['channel']['destination'])
-    if not (result.get('publication_confirmed') or result.get('upload_confirmed')) or not re.fullmatch(r'[A-Za-z0-9_-]{11}', result.get('youtube_id', '')):
+    if not (result.get('publication_confirmed') or result.get('upload_confirmed')) or (result.get('publication_confirmed') and not re.fullmatch(r'[A-Za-z0-9_-]{11}', result.get('youtube_id', ''))):
         raise RuntimeError('YouTube publication could not be confirmed.')
     save(folder / ('published.json' if result.get('publication_confirmed') else 'uploaded.json'), result)
-    return {'state': 'completed', 'publication_confirmed': bool(result.get('publication_confirmed')), 'upload_confirmed': True, 'youtube_id': result['youtube_id']}
+    return {'state': 'completed', 'publication_confirmed': bool(result.get('publication_confirmed')), 'upload_confirmed': True, 'youtube_id': result.get('youtube_id', '')}
 
 
 def main():

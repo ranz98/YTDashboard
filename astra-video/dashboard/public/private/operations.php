@@ -127,6 +127,7 @@ function complete_task(PDO $pdo, string $worker, array $body): void {
     if ($state!=='completed' && !$reason) throw new InvalidArgumentException('A reason is required.');
     $job=$task['job_id']?(int)$task['job_id']:null;
     if ($state==='completed' && $task['agent']==='fetch') {
+        reconcile_publications($pdo,(int)$task['channel_id'],$body['publications']??[]);
         $videos=$body['videos']??[];
         if (!is_array($videos) || count($videos)>5) throw new InvalidArgumentException('A fetch can report at most five downloads.');
         foreach ($videos as $video) {
@@ -160,9 +161,9 @@ function complete_task(PDO $pdo, string $worker, array $body): void {
         $q=$pdo->prepare("UPDATE jobs SET status='ready',stage='uploader',progress=100,error=NULL,title=COALESCE(?,title) WHERE id=?");$q->execute([isset($body['title'])?mb_substr((string)$body['title'],0,255):null,$job]);
     } elseif ($state==='completed' && $task['agent']==='uploader') {
         $youtubeId=(string)($body['youtube_id']??'');
-        if ((empty($body['publication_confirmed']) && empty($body['upload_confirmed'])) || !preg_match('/^[A-Za-z0-9_-]{11}$/',$youtubeId)) throw new InvalidArgumentException('YouTube publication must be confirmed with a video ID.');
+        if ((empty($body['publication_confirmed']) && empty($body['upload_confirmed'])) || ($youtubeId!=='' && !preg_match('/^[A-Za-z0-9_-]{11}$/',$youtubeId)) || (!empty($body['publication_confirmed']) && $youtubeId==='')) throw new InvalidArgumentException('YouTube publication must be confirmed with a video ID.');
         $published=!empty($body['publication_confirmed']);
-        $q=$pdo->prepare("UPDATE jobs SET status=?,progress=100,published_url=?,finished_at=UTC_TIMESTAMP(),error=NULL WHERE id=?");$q->execute([$published?'published':'processing','https://www.youtube.com/watch?v='.$youtubeId,$job]);
+        $q=$pdo->prepare("UPDATE jobs SET status=?,progress=100,published_url=?,finished_at=UTC_TIMESTAMP(),error=NULL WHERE id=?");$q->execute([$published?'published':'processing',$youtubeId!==''?'https://www.youtube.com/watch?v='.$youtubeId:null,$job]);
         if ($published) {$q=$pdo->prepare('UPDATE video_progress SET published_at=UTC_TIMESTAMP() WHERE job_id=?');$q->execute([$job]);}
     } elseif ($job) {
         // An uncertain upload must be reconciled, never retried blindly.
@@ -288,4 +289,30 @@ function handle_operations(PDO $pdo, string $action, array $body): array {
         }
     } else throw new InvalidArgumentException('Unknown operation.');
     $pdo->commit(); return ['ok'=>true];
+}
+
+// Only the leased fetch worker reports observations from the destination channel.
+function reconcile_publications(PDO $pdo, int $channel, array $observations): void {
+    if (count($observations)>60) throw new InvalidArgumentException('Too many publication observations.');
+    $q=$pdo->prepare("SELECT j.id,j.title,j.published_url FROM jobs j WHERE j.channel_id=? AND j.status IN ('processing','needs_attention') AND EXISTS (SELECT 1 FROM pipeline_tasks t WHERE t.job_id=j.id AND t.agent='uploader') FOR UPDATE");
+    $q->execute([$channel]);$pending=$q->fetchAll();
+    $normalize=static fn($title)=>preg_replace('/\s+/u',' ',trim((string)$title));
+    foreach ($pending as $job) {
+        $matches=[];
+        foreach ($observations as $seen) {
+            $id=(string)($seen['id']??'');
+            if (!preg_match('/^[A-Za-z0-9_-]{11}$/',$id) || $normalize($seen['title']??'')!==$normalize($job['title'])) continue;
+            if ($job['published_url'] && $job['published_url']!=='https://www.youtube.com/watch?v='.$id) continue;
+            $matches[$id]=true;
+        }
+        if (count($matches)!==1) continue;
+        if (!$job['published_url'] && count(array_filter($pending,static fn($other)=>$normalize($other['title'])===$normalize($job['title'])))!==1) continue;
+        $url='https://www.youtube.com/watch?v='.array_key_first($matches);
+        $q=$pdo->prepare('SELECT id FROM jobs WHERE published_url=? AND id<>?');$q->execute([$url,$job['id']]);
+        if ($q->fetchColumn()) continue;
+        $q=$pdo->prepare("UPDATE jobs SET status='published',progress=100,published_url=?,error=NULL WHERE id=?");$q->execute([$url,$job['id']]);
+        $q=$pdo->prepare('UPDATE video_progress SET published_at=UTC_TIMESTAMP(),blocked_reason=NULL WHERE job_id=?');$q->execute([$job['id']]);
+        $q=$pdo->prepare("UPDATE pipeline_tasks SET state='completed',progress=100,reason='Confirmed on destination channel',finished_at=COALESCE(finished_at,UTC_TIMESTAMP()) WHERE job_id=? AND agent='uploader' AND state='needs_attention'");$q->execute([$job['id']]);
+        event($pdo,(int)$job['id'],'uploader','success','Publication confirmed on destination channel. Timestamp is verification time.');
+    }
 }

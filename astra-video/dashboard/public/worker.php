@@ -41,6 +41,8 @@ try {
             if ($task['agent']==='fetch') {
                 $q=$pdo->prepare('SELECT source_video_id FROM video_progress WHERE channel_id=? ORDER BY job_id DESC LIMIT 5000');$q->execute([$task['channel_id']]);
                 $task['known_video_ids']=$q->fetchAll(PDO::FETCH_COLUMN);
+                $q=$pdo->prepare("SELECT COUNT(*) FROM jobs WHERE channel_id=? AND status IN ('processing','needs_attention')");$q->execute([$task['channel_id']]);
+                $task['check_publications']=(bool)$q->fetchColumn();
             }
         }
         $pdo->commit();json_response(['task'=>$task,'server_time'=>gmdate('c')]);

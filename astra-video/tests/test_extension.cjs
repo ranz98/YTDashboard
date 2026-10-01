@@ -94,5 +94,11 @@ function environment(command, published = true) {
   assert.equal(clicked,1);
   dialog.querySelectorAll=selector=>selector==='a[href]'?[]:[close];
   assert.equal(vm.runInContext("page('confirmation')",env.context),null,'No receipt without video ID');
+  dialog.innerText += ' Exact upload title';
+  const pending = vm.runInContext("page('confirmation', 'Exact upload title')",env.context);
+  assert.equal(pending.upload_confirmed,true);
+  assert.equal(pending.youtube_id,'');
+  assert.equal(pending.publication_confirmed,false);
+  assert.equal(vm.runInContext("page('confirmation', 'Wrong title')",env.context),null);
   console.log('Extension checks passed: upload order, receipt replay, restart, cancellation, five-video scan.');
 })().catch(error => { console.error(error); process.exit(1); });

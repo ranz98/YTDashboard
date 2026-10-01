@@ -21,18 +21,19 @@ function page(action, value) {
     !element.disabled && element.getAttribute('aria-disabled') !== 'true';
   const select = selector => [...document.querySelectorAll(selector)].find(visible);
   if (action === 'scan') {
+    if (value?.destination && !location.pathname.startsWith('/channel/' + value.destination + '/')) throw new Error('Destination channel page changed; publication check deferred.');
     for (const media of document.querySelectorAll('video,audio')) {
       media.pause(); media.autoplay = false; media.preload = 'none';
     }
     const videos = [], seen = new Set();
-    for (const anchor of document.querySelectorAll('a[href*="/shorts/"]')) {
-      const id = anchor.getAttribute('href').match(/\/shorts\/([\w-]{11})(?:[/?]|$)/)?.[1];
+    for (const anchor of document.querySelectorAll('a[href*="/shorts/"], a[href*="watch?v="]')) {
+      const id = anchor.getAttribute('href').match(/(?:\/shorts\/|[?&]v=)([\w-]{11})(?:[/?&]|$)/)?.[1];
       if (!id || seen.has(id)) continue;
       seen.add(id);
       const card = anchor.closest('ytd-rich-item-renderer, ytd-reel-item-renderer, yt-lockup-view-model') || anchor;
-      const title = card.querySelector('[title]')?.getAttribute('title') || anchor.getAttribute('aria-label') || card.innerText || id;
+      const title = card.querySelector('#video-title')?.getAttribute('title') || card.querySelector('[title]')?.getAttribute('title') || anchor.getAttribute('aria-label') || card.innerText || id;
       videos.push({id, title: title.trim()});
-      if (videos.length === 5) break;
+      if (videos.length === (value?.limit || 5)) break;
     }
     return videos;
   }
@@ -82,20 +83,21 @@ function page(action, value) {
     button.click(); return true;
   }
   if (action === 'confirmation') {
-    const dialog = select('ytcp-video-share-dialog');
+    const dialog = [...document.querySelectorAll('ytcp-video-share-dialog, ytcp-uploads-dialog, [role="dialog"], tp-yt-paper-dialog')].find(e => visible(e) && /video (processing|published)/i.test(e.innerText));
     if (!dialog) return null;
     const published = /video published/i.test(dialog.innerText);
     const processing = /video processing/i.test(dialog.innerText) && /standard definition/i.test(dialog.innerText);
     if (!published && !processing) return null;
     const links = [...dialog.querySelectorAll('a[href]')].map(a => a.href).join(' ');
     const id = (links + ' ' + dialog.innerText).match(/(?:youtu\.be\/|youtube\.com\/watch\?v=)([\w-]{11})/)?.[1];
-    if (!id) return null;
+    if (!id && published) return null;
+    if (!id && (!value || !dialog.innerText.includes(value))) return null;
     const close = [...dialog.querySelectorAll('ytcp-button,button')].find(e => visible(e) && /^close$/i.test(e.innerText.trim()));
     if (!close) return null;
-    return {youtube_id: id, publication_confirmed: published, upload_confirmed: true};
+    return {youtube_id: id || '', publication_confirmed: published, upload_confirmed: true};
   }
   if (action === 'close-receipt') {
-    const dialog = select('ytcp-video-share-dialog');
+    const dialog = [...document.querySelectorAll('ytcp-video-share-dialog, ytcp-uploads-dialog, [role="dialog"], tp-yt-paper-dialog')].find(e => visible(e) && /video (processing|published)/i.test(e.innerText));
     const close = dialog && [...dialog.querySelectorAll('ytcp-button,button')].find(e => visible(e) && /^close$/i.test(e.innerText.trim()));
     if (close) close.click();
     return Boolean(close);
@@ -152,7 +154,7 @@ async function finish(active, result) {
 }
 
 async function execute(command) {
-  let active = {id: command.id, action: command.action};
+  let active = {id: command.id, action: command.action, title: command.title};
   let step = 'opening';
   const report = async name => {
     step = name;
@@ -163,10 +165,10 @@ async function execute(command) {
   await chrome.storage.local.set({active});
   try {
     if (!['fetch', 'upload'].includes(command.action)) throw new Error('Unknown command.');
-    if (command.action === 'fetch' && !/^@[\p{L}\p{N}_.-]{2,100}$/u.test(command.handle)) throw new Error('Invalid channel handle.');
-    if (command.action === 'upload' && !/^UC[\w-]{22}$/.test(command.destination)) throw new Error('Destination must be a YouTube channel ID.');
+    if (command.action === 'fetch' && !command.destination && !/^@[\p{L}\p{N}_.-]{2,100}$/u.test(command.handle)) throw new Error('Invalid channel handle.');
+    if ((command.action === 'upload' || command.destination) && !/^UC[\w-]{22}$/.test(command.destination)) throw new Error('Destination must be a YouTube channel ID.');
     const url = command.action === 'fetch'
-      ? 'https://www.youtube.com/' + encodeURIComponent(command.handle) + '/shorts'
+      ? (command.destination ? 'https://www.youtube.com/channel/' + command.destination + (command.section === 'videos' ? '/videos' : '/shorts') : 'https://www.youtube.com/' + encodeURIComponent(command.handle) + '/shorts')
       : 'https://studio.youtube.com/channel/' + command.destination;
     if (command.action === 'upload') await report('opening');
     const tab = await chrome.tabs.create({url: 'about:blank', active: command.action === 'upload'});
@@ -185,11 +187,11 @@ async function execute(command) {
     if (command.action === 'fetch') {
       let previous = '', stable = 0;
       const videos = await until(command, async () => {
-        const found = await inTab(tab.id, 'scan');
+        const found = await inTab(tab.id, 'scan', {limit: command.destination ? 30 : 5, destination: command.destination});
         const signature = found.map(video => video.id).join(',');
         stable = signature === previous ? stable + 1 : 0;
         previous = signature;
-        return found.length === 5 || (found.length && stable >= 3) ? found : null;
+        return found.length >= (command.destination ? 30 : 5) || (stable >= 3 && (command.destination || found.length)) ? found : null;
       });
       await finish(active, {ok: true, videos});
       return;
@@ -218,7 +220,7 @@ async function execute(command) {
     await inTab(tab.id, 'publish');
     // YouTube owns processing after its saved receipt; the browser can close.
     await report('confirmation');
-    const receipt = await until(command, () => inTab(tab.id, 'confirmation'), 5400000, 10000);
+    const receipt = await until(command, () => inTab(tab.id, 'confirmation', command.title), 5400000, 10000);
     await finish(active, {ok: true, ...receipt});
   } catch (error) {
     await finish(active, {ok: false, error: (step + ': ' + String(error.message)).slice(0, 400)});
@@ -236,7 +238,7 @@ async function poll() {
     if (active) {
       if (active.id === command.id && active.action === 'upload' && active.tabId) {
         let saved;
-        try { saved = await inTab(active.tabId, 'confirmation'); } catch (_) {}
+        try { saved = await inTab(active.tabId, 'confirmation', active.title || command.title); } catch (_) {}
         if (saved) { await finish(active, {ok: true, ...saved}); return; }
       }
       // Never repeat a browser action after a service worker restart.

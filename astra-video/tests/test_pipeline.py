@@ -103,6 +103,19 @@ class AdapterTests(unittest.TestCase):
                 adapter.upload(task, Path(temp) / 'request.json')
             browser.assert_not_called()
 
+    def test_processing_receipt_without_link_is_saved(self):
+        with tempfile.TemporaryDirectory() as temp, patch.object(adapter, 'BASE', Path(temp)), \
+                patch.object(adapter, 'verify', return_value=12), \
+                patch.object(adapter, 'browser', return_value={'ok': True, 'upload_confirmed': True}):
+            task = {'channel_id': 1, 'channel': {'destination': 'UC' + 'x' * 22},
+                    'video': {'source_video_id': 'abcdefghijk', 'title': 'Title'}}
+            folder = adapter.folder_for(task, 'abcdefghijk')
+            save(folder / 'ready.json', {'title': 'Title'})
+            result = adapter.upload(task, Path(temp) / 'request.json')
+            self.assertFalse(result['publication_confirmed'])
+            self.assertTrue((folder / 'uploaded.json').exists())
+            self.assertFalse((folder / 'published.json').exists())
+
     def test_upload_requires_publication_evidence(self):
         with tempfile.TemporaryDirectory() as temp, patch.object(adapter, 'BASE', Path(temp)), \
                 patch.object(adapter, 'verify', return_value=12), \
