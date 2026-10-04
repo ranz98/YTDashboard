@@ -85,7 +85,7 @@ function environment(command, published = true) {
   const close = {innerText:'Close',getClientRects:()=>[1],getAttribute:()=>null,click:()=>clicked++};
   const dialog = {innerText:'Video processing. The standard definition (SD) version needs to finish.',getClientRects:()=>[1],getAttribute:()=>null,
     querySelectorAll:selector=>selector==='a[href]'?[{href:'https://youtu.be/abcdefghijk'}]:[close]};
-  env.context.document = {querySelectorAll:()=>[dialog]};
+  env.context.document = {querySelectorAll:selector=>selector==='*'?[]:[dialog]};
   const receipt = vm.runInContext("page('confirmation')",env.context);
   assert.equal(receipt.upload_confirmed,true);
   assert.equal(receipt.publication_confirmed,false);
@@ -100,5 +100,11 @@ function environment(command, published = true) {
   assert.equal(pending.youtube_id,'');
   assert.equal(pending.publication_confirmed,false);
   assert.equal(vm.runInContext("page('confirmation', 'Wrong title')",env.context),null);
+  env.context.document.querySelectorAll = () => [];
+  env.context.document.body = dialog;
+  dialog.innerText = 'Video processing Exact\n upload title Checks complete. No issues found.';
+  assert.equal(vm.runInContext("page('confirmation', 'Exact upload title')",env.context).upload_confirmed,true);
+  dialog.innerText = 'Exact upload title Checks complete. No issues found.';
+  assert.equal(vm.runInContext("page('confirmation', 'Exact upload title')",env.context),null,'Checks alone are not an upload receipt');
   console.log('Extension checks passed: upload order, receipt replay, restart, cancellation, five-video scan.');
 })().catch(error => { console.error(error); process.exit(1); });

@@ -82,25 +82,36 @@ function page(action, value) {
     if (!button || !/publish/i.test(button.innerText)) throw new Error('Publish button is not ready.');
     button.click(); return true;
   }
-  if (action === 'confirmation') {
-    const dialog = [...document.querySelectorAll('ytcp-video-share-dialog, ytcp-uploads-dialog, [role="dialog"], tp-yt-paper-dialog')].find(e => visible(e) && /video (processing|published)/i.test(e.innerText));
-    if (!dialog) return null;
-    const published = /video published/i.test(dialog.innerText);
-    const processing = /video processing/i.test(dialog.innerText) && /standard definition/i.test(dialog.innerText);
-    if (!published && !processing) return null;
-    const links = [...dialog.querySelectorAll('a[href]')].map(a => a.href).join(' ');
-    const id = (links + ' ' + dialog.innerText).match(/(?:youtu\.be\/|youtube\.com\/watch\?v=)([\w-]{11})/)?.[1];
-    if (!id && published) return null;
-    if (!id && (!value || !dialog.innerText.includes(value))) return null;
-    const close = [...dialog.querySelectorAll('ytcp-button,button')].find(e => visible(e) && /^close$/i.test(e.innerText.trim()));
-    if (!close) return null;
-    return {youtube_id: id || '', publication_confirmed: published, upload_confirmed: true};
-  }
-  if (action === 'close-receipt') {
-    const dialog = [...document.querySelectorAll('ytcp-video-share-dialog, ytcp-uploads-dialog, [role="dialog"], tp-yt-paper-dialog')].find(e => visible(e) && /video (processing|published)/i.test(e.innerText));
-    const close = dialog && [...dialog.querySelectorAll('ytcp-button,button')].find(e => visible(e) && /^close$/i.test(e.innerText.trim()));
-    if (close) close.click();
-    return Boolean(close);
+  if (action === 'confirmation' || action === 'close-receipt') {
+    const normalize = text => String(text || '').normalize('NFKC').replace(/[\u200B-\u200D\uFEFF]/g, '').replace(/\s+/g, ' ').trim();
+    const roots = [document];
+    for (let i = 0; i < roots.length; i++) {
+      for (const node of roots[i].querySelectorAll('*')) if (node.shadowRoot) roots.push(node.shadowRoot);
+    }
+    const selectors = 'ytcp-video-share-dialog, ytcp-uploads-dialog, [role="dialog"], tp-yt-paper-dialog';
+    const candidates = roots.flatMap(root => [...root.querySelectorAll(selectors)]).filter(visible);
+    // Some Studio versions render the processing receipt outside the dialog wrapper.
+    if (document.body) candidates.push(document.body);
+    for (const dialog of candidates) {
+      const text = normalize(dialog.innerText);
+      const published = /video published/i.test(text);
+      const processing = /video processing/i.test(text);
+      const checks = /checks complete\.?\s*no issues found\.?/i.test(text);
+      if (!published && !(processing && (/standard definition/i.test(text) || checks))) continue;
+      if (dialog === document.body && (!processing || !checks || !value || !text.includes(normalize(value)))) continue;
+      const scoped = roots.filter(root => root === document ? false : dialog.contains?.(root.host));
+      const nodes = [dialog, ...scoped];
+      const links = nodes.flatMap(root => [...root.querySelectorAll('a[href]')]).map(a => a.href).join(' ');
+      const id = (links + ' ' + text).match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|shorts\/))([\w-]{11})/)?.[1];
+      if (published && !id) continue;
+      if (!id && (!value || !text.includes(normalize(value)))) continue;
+      const close = nodes.flatMap(root => [...root.querySelectorAll('ytcp-button, button, [role="button"]')]).find(e =>
+        visible(e) && /^close$/i.test(normalize(e.getAttribute('aria-label') || e.innerText || e.textContent)));
+      if (!close) continue;
+      if (action === 'close-receipt') { close.click(); return true; }
+      return {youtube_id: id || '', publication_confirmed: published, upload_confirmed: true};
+    }
+    return action === 'close-receipt' ? false : null;
   }
   throw new Error('Unknown tab operation.');
 }
@@ -129,7 +140,7 @@ async function until(command, operation, milliseconds = 120000, interval = 3000)
 async function finish(active, result) {
   if (result.upload_confirmed) {
     await chrome.storage.local.set({receipt: {id: active.id, ...result}});
-    try { await inTab(active.tabId, 'close-receipt'); } catch (_) {}
+    try { await inTab(active.tabId, 'close-receipt', active.title); } catch (_) {}
   }
   const reviewUpload = active.action === 'upload' && !result.ok;
   if (active.tabId && reviewUpload) {
